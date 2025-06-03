@@ -1,11 +1,17 @@
-# 💰 BudgetManage - Système de Gestion Budget
+# 💰 BudgetManage v1.0.0 - Système de Gestion Budget
 
 > Application Streamlit moderne pour la gestion des demandes budgétaires avec workflow de validation hiérarchique
 
+[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](https://github.com/RedakArraid/budgetManage/releases)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
 [![SQLite](https://img.shields.io/badge/Database-SQLite-green.svg)](https://sqlite.org/)
 [![Architecture](https://img.shields.io/badge/Architecture-MVC-orange.svg)](#architecture)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue.svg)](https://github.com/RedakArraid/budgetManage/actions)
+
+## 🎉 Version 1.0.0 - Production Ready!
+
+**BudgetManage** est maintenant **officiellement stable** et prêt pour la production ! Cette première version majeure inclut toutes les fonctionnalités essentielles pour la gestion budgétaire d'entreprise.
 
 ## 🚀 Fonctionnalités
 
@@ -44,10 +50,22 @@ budgetmanage/
 
 ## 🚀 Installation Rapide
 
+### 💻 Option 1: Exécutable Windows (Recommandé)
+
+**Aucune installation requise !**
+
+1. **Télécharger** depuis [GitHub Releases](https://github.com/RedakArraid/budgetManage/releases/latest)
+2. **Télécharger** `BudgetManage-Windows-Portable.zip`
+3. **Extraire** le fichier ZIP
+4. **Double-cliquer** sur `start.bat`
+5. **Ouvrir** le navigateur sur http://localhost:8501
+
+### 🐍 Option 2: Installation Python
+
 ```bash
 # Clone du projet
-git clone https://github.com/VOTRE-USERNAME/budgetmanage.git
-cd budgetmanage
+git clone https://github.com/RedakArraid/budgetManage.git
+cd budgetManage
 
 # Installation des dépendances
 pip install -r requirements.txt
@@ -58,6 +76,18 @@ cp .env.template .env
 
 # Démarrage
 streamlit run main.py
+```
+
+### 🐳 Option 3: Docker
+
+```bash
+# Télécharger l'image Docker
+wget https://github.com/RedakArraid/budgetManage/releases/latest/download/budgetmanage-docker.tar.gz
+gunzip budgetmanage-docker.tar.gz
+docker load < budgetmanage-docker.tar
+
+# Lancer l'application
+docker run -p 8501:8501 budgetmanage:v1.0.0
 ```
 
 ## ⚙️ Configuration
