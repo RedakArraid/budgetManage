@@ -143,6 +143,86 @@ def load_css():
         border-radius: 5px;
     }
     
+    /* Form labels - make them white instead of gray */
+    .stTextInput>label, 
+    .stTextArea>label, 
+    .stSelectbox>label,
+    .stNumberInput>label,
+    .stDateInput>label,
+    .stFileUploader>label,
+    .stCheckbox>label,
+    .stRadio>label,
+    .stSlider>label {
+        color: white !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Form field labels in Streamlit - modern selectors */
+    div[data-testid="stWidgetLabel"] > label,
+    div[data-testid="stWidgetLabel"] p,
+    .stTextInput label,
+    .stTextArea label,
+    .stSelectbox label,
+    .stNumberInput label,
+    .stDateInput label,
+    .stMultiSelect label,
+    .stRadio label,
+    .stCheckbox label,
+    .stSlider label,
+    .stFileUploader label {
+        color: white !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Ensure all form labels are white */
+    .stFormSubmitButton>label,
+    .stForm label,
+    label {
+        color: white !important;
+    }
+    
+    /* Specific for Streamlit widget labels */
+    [data-testid="stWidgetLabel"] {
+        color: white !important;
+    }
+    
+    /* Additional modern Streamlit selectors for labels */
+    .st-emotion-cache-1wmy9hl,
+    .st-emotion-cache-1wmy9hl p,
+    .st-emotion-cache-j5r0tf,
+    .st-emotion-cache-j5r0tf p,
+    .element-container label,
+    .widget-label,
+    [data-testid="stMarkdownContainer"] label {
+        color: white !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Force all labels and p elements in widgets to be white */
+    .stTextInput p,
+    .stTextArea p,
+    .stSelectbox p,
+    .stNumberInput p,
+    .stDateInput p,
+    .stMultiSelect p,
+    .stRadio p,
+    .stCheckbox p,
+    .stSlider p,
+    .stFileUploader p {
+        color: white !important;
+    }
+    
+    /* Form headers and subheaders */
+    .stForm [data-testid="stMarkdownContainer"] h1,
+    .stForm [data-testid="stMarkdownContainer"] h2,
+    .stForm [data-testid="stMarkdownContainer"] h3,
+    .stForm [data-testid="stMarkdownContainer"] h4,
+    .stForm [data-testid="stMarkdownContainer"] h5,
+    .stForm [data-testid="stMarkdownContainer"] h6 {
+        color: white !important;
+        font-weight: bold !important;
+    }
+    
     /* Date input */
     .stDateInput>div>div>input {
         background-color: #2d2d2d;
@@ -152,7 +232,18 @@ def load_css():
     }
     
     h1, h2, h3, h4, h5, h6 {
-        color: white;
+        color: white !important;
+    }
+    
+    /* Make sure all text in forms is white */
+    .stForm h1, .stForm h2, .stForm h3, .stForm h4, .stForm h5, .stForm h6 {
+        color: white !important;
+        font-weight: bold !important;
+    }
+    
+    /* Markdown text in forms */
+    .stMarkdown p, .stMarkdown div {
+        color: white !important;
     }
     
     /* Role badges */
