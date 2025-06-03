@@ -250,6 +250,32 @@ class AuthController:
         return permission_service.is_validator(user_role) if user_role else False
     
     @staticmethod
+    def change_password(user_id: int, current_password: str, new_password: str) -> tuple[bool, str]:
+        """Change the user's password."""
+        try:
+            # Validate password strength if necessary (can add more checks)
+            if not validate_password(new_password): # Assuming validate_password checks for basic complexity
+                 return False, "Le nouveau mot de passe ne respecte pas les critères de sécurité (minimum 8 caractères, majuscule, minuscule, chiffre, caractère spécial)."
+
+            # Call UserModel to handle the actual password change logic
+            success, message = UserModel.change_password(user_id, current_password, new_password)
+
+            if success:
+                ActivityLogModel.log_activity(user_id, None, 'changement_mdp', "Mot de passe changé avec succès")
+                logger.info(f"Password changed successfully for user_id: {user_id}")
+                return True, "Votre mot de passe a été changé avec succès."
+            else:
+                # Message from UserModel explains why it failed (e.g., incorrect current password)
+                ActivityLogModel.log_activity(user_id, None, 'changement_mdp_echec', f"Échec changement mot de passe: {message}")
+                logger.warning(f"Password change failed for user_id: {user_id}: {message}")
+                return False, message
+
+        except Exception as e:
+            logger.error(f"Error changing password for user_id {user_id}: {e}")
+            ActivityLogModel.log_activity(user_id, None, 'changement_mdp_erreur', f"Erreur interne changement mot de passe: {e}")
+            return False, "Une erreur interne est survenue lors du changement de mot de passe."
+    
+    @staticmethod
     def is_financial_validator() -> bool:
         """Vérifier si l'utilisateur actuel peut faire des validations financières"""
         user_role = AuthController.get_current_user_role()

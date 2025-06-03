@@ -72,14 +72,13 @@ def nouvelle_demande_page():
                 date_evenement = st.date_input(
                     "📅 Date de l'événement*",
                     value=date.today(),
-                    min_value=date.today()
                 )
                 urgence = st.selectbox(
                     "🚨 Urgence",
                     options=['normale', 'urgent', 'critique'],
                     format_func=lambda x: {
-                        'normale': '�︢ Normale',
-                        'urgent': '�︡ Urgent',
+                        'normale': '🟢 Normale',
+                        'urgent': '🟡 Urgent',
                         'critique': '🔴 Critique'
                     }[x]
                 )
@@ -218,7 +217,6 @@ def nouvelle_demande_page():
             date_evenement = st.date_input(
                 "📅 Date de l'événement*",
                 value=date.today(),
-                min_value=date.today()
             )
         
         with col2:

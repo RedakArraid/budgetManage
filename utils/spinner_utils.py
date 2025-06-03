@@ -39,6 +39,7 @@ class SpinnerMessages:
     # Authentification
     AUTH_LOGIN = "🔐 Connexion en cours..."
     AUTH_LOGOUT = "👋 Déconnexion..."
+    AUTH_PASSWORD_CHANGE = "🔑 Changement de mot de passe..."
     
     # Général
     PROCESSING = "⚙️ Traitement en cours..."
@@ -156,6 +157,14 @@ class OperationFeedback:
         return smart_spinner(
             SpinnerMessages.DB_DELETING,
             "✅ Demande supprimée avec succès !"
+        )
+
+    @staticmethod
+    def change_password():
+        """Feedback pour changement de mot de passe"""
+        return smart_spinner(
+            SpinnerMessages.AUTH_PASSWORD_CHANGE,
+            "✅ Mot de passe changé avec succès !"
         )
 
 # Décorateur pour ajouter automatiquement un spinner

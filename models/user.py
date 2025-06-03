@@ -554,3 +554,34 @@ class UserModel:
         except Exception as e:
             print(f"Erreur récupération tous les TCs: {e}")
             return []
+
+    @staticmethod
+    def change_password(user_id: int, current_password: str, new_password: str) -> tuple[bool, str]:
+        """Change the user's password in the database."""
+        try:
+            # 1. Get user by ID
+            user_data = UserModel.get_user_by_id(user_id)
+            if not user_data:
+                return False, "Utilisateur non trouvé."
+
+            # 2. Verify the current password
+            if not verify_password(current_password, user_data['password_hash']):
+                return False, "Mot de passe actuel incorrect."
+
+            # 3. Hash the new password
+            hashed_new_password = hash_password(new_password)
+
+            # 4. Update the password in the database
+            db.execute_query(
+                '''
+                UPDATE users
+                SET password_hash = ?
+                WHERE id = ?
+                ''', (hashed_new_password, user_id)
+            )
+
+            return True, "Mot de passe mis à jour avec succès."
+
+        except Exception as e:
+            print(f"Erreur UserModel.change_password pour user_id {user_id}: {e}")
+            return False, f"Une erreur est survenue lors de la mise à jour du mot de passe: {e}"

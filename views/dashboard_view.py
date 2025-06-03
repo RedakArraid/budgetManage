@@ -165,26 +165,32 @@ def _display_metrics(role, stats):
 
 # Fonctions utilitaires pour les actions rapides (pour assurer le déclenchement)
 def go_to_nouvelle_demande():
+    print("[DEBUG] Quick action button clicked: Nouvelle Demande")
     st.session_state.page = "nouvelle_demande"
     st.rerun()
 
 def go_to_gestion_utilisateurs():
+    print("[DEBUG] Quick action button clicked: Gestion Utilisateurs")
     st.session_state.page = "gestion_utilisateurs"
     st.rerun()
 
 def go_to_mes_demandes():
+    print("[DEBUG] Quick action button clicked: Mes Demandes")
     st.session_state.page = "demandes"
     st.rerun()
 
 def go_to_validations():
+    print("[DEBUG] Quick action button clicked: Validations")
     st.session_state.page = "validations"
     st.rerun()
 
 def go_to_analytics():
+    print("[DEBUG] Quick action button clicked: Analytics")
     st.session_state.page = "analytics"
     st.rerun()
 
 def go_to_notifications():
+    print("[DEBUG] Quick action button clicked: Notifications")
     st.session_state.page = "notifications"
     st.rerun()
 
