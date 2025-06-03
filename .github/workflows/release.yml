@@ -1,0 +1,299 @@
+name: 🚀 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: 🚀 Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
+      
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🏷️ Get version from tag
+      id: get_version
+      run: |
+        echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: 📝 Generate changelog
+      id: changelog
+      run: |
+        # Récupérer les commits depuis le dernier tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -z "$LAST_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"- %s (%an)" --no-merges)
+        else
+          COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%an)" --no-merges)
+        fi
+        
+        # Créer le changelog
+        CHANGELOG="## 🚀 Version ${{ steps.get_version.outputs.version }}
+
+### 📋 Changements
+
+$COMMITS
+
+### 📦 Assets Disponibles
+
+- **BudgetManage-Windows-Portable.zip** : Version portable pour Windows (aucune installation requise)
+- **BudgetManage.exe** : Exécutable Windows standalone
+- **budgetmanage-docker.tar.gz** : Image Docker
+- **Source code** : Code source de cette version
+
+### 🚀 Installation Rapide
+
+#### Windows (Sans Installation)
+1. Télécharger \`BudgetManage-Windows-Portable.zip\`
+2. Extraire le fichier
+3. Double-cliquer sur \`start.bat\`
+4. Ouvrir le navigateur sur http://localhost:8501
+
+#### Docker
+\`\`\`bash
+gunzip budgetmanage-docker.tar.gz
+docker load < budgetmanage-docker.tar
+docker run -p 8501:8501 budgetmanage:${{ steps.get_version.outputs.version }}
+\`\`\`
+
+### 🔐 Connexion par Défaut
+- **Email** : admin@budget.com
+- **Mot de passe** : admin123
+
+⚠️ **Important** : Changez le mot de passe admin après la première connexion !
+"
+        
+        # Sauvegarder le changelog
+        echo "$CHANGELOG" > changelog.md
+        
+        # Pour GitHub Actions
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: 🚀 Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.tag_name }}
+        release_name: 🚀 BudgetManage ${{ steps.get_version.outputs.version }}
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'alpha') }}
+
+  build-and-upload-windows:
+    name: 🪟 Build & Upload Windows Assets
+    runs-on: windows-latest
+    needs: create-release
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 🔧 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: 🏗️ Build Windows executable
+      run: |
+        # Créer le spec file
+        python -c "
+        import os
+        import streamlit
+        
+        spec_content = '''
+a = Analysis(
+    ['main.py'],
+    pathex=[os.getcwd()],
+    binaries=[],
+    datas=[
+        (os.path.join(os.path.dirname(streamlit.__file__), 'static'), 'streamlit/static'),
+        (os.path.join(os.path.dirname(streamlit.__file__), 'runtime'), 'streamlit/runtime'),
+        ('config', 'config'),
+        ('models', 'models'),
+        ('controllers', 'controllers'),
+        ('services', 'services'),
+        ('views', 'views'),
+        ('utils', 'utils'),
+        ('static', 'static'),
+        ('migrations', 'migrations'),
+    ],
+    hiddenimports=[
+        'streamlit', 'streamlit.web.cli', 'streamlit.runtime.scriptrunner.script_runner',
+        'validators', 'bcrypt', 'plotly', 'pandas', 'openpyxl', 'sqlite3', 'dotenv',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+
+exe = EXE(
+    pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
+    name='BudgetManage',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+'''
+        
+        with open('budgetmanage.spec', 'w') as f:
+            f.write(spec_content)
+        "
+        
+        # Build
+        pyinstaller budgetmanage.spec --clean --noconfirm
+
+    - name: 📦 Create portable package
+      run: |
+        mkdir BudgetManage-Portable
+        copy dist\BudgetManage.exe BudgetManage-Portable\
+        
+        # Script de démarrage
+        echo @echo off > BudgetManage-Portable\start.bat
+        echo title BudgetManage - Systeme de Gestion Budget >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo ================================== >> BudgetManage-Portable\start.bat
+        echo echo    BUDGETMANAGE ${{ needs.create-release.outputs.tag_name }} >> BudgetManage-Portable\start.bat
+        echo echo    Systeme de Gestion Budget >> BudgetManage-Portable\start.bat
+        echo echo ================================== >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo Demarrage en cours... >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo Apres demarrage, ouvrez votre navigateur sur: >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo    http://localhost:8501 >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo Connexion par defaut: >> BudgetManage-Portable\start.bat
+        echo echo   Email: admin@budget.com >> BudgetManage-Portable\start.bat
+        echo echo   Mot de passe: admin123 >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo Appuyez sur Ctrl+C pour arreter l'application >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo BudgetManage.exe >> BudgetManage-Portable\start.bat
+        echo pause >> BudgetManage-Portable\start.bat
+        
+        # README détaillé
+        echo # BudgetManage - Version Portable ${{ needs.create-release.outputs.tag_name }} > BudgetManage-Portable\README.md
+        echo. >> BudgetManage-Portable\README.md
+        echo ## 🚀 Demarrage Rapide >> BudgetManage-Portable\README.md
+        echo. >> BudgetManage-Portable\README.md
+        echo 1. Double-cliquez sur `start.bat` >> BudgetManage-Portable\README.md
+        echo 2. Attendez que l'application demarre >> BudgetManage-Portable\README.md
+        echo 3. Ouvrez votre navigateur sur http://localhost:8501 >> BudgetManage-Portable\README.md
+        echo. >> BudgetManage-Portable\README.md
+        echo ## 🔐 Connexion par Defaut >> BudgetManage-Portable\README.md
+        echo. >> BudgetManage-Portable\README.md
+        echo - **Email**: admin@budget.com >> BudgetManage-Portable\README.md
+        echo - **Mot de passe**: admin123 >> BudgetManage-Portable\README.md
+        echo. >> BudgetManage-Portable\README.md
+        echo ⚠️ **Important**: Changez le mot de passe apres la premiere connexion ! >> BudgetManage-Portable\README.md
+
+    - name: 🗜️ Create ZIP archive
+      run: |
+        Compress-Archive -Path BudgetManage-Portable\* -DestinationPath BudgetManage-Windows-Portable.zip
+
+    - name: 📤 Upload Windows Portable ZIP
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./BudgetManage-Windows-Portable.zip
+        asset_name: BudgetManage-Windows-Portable.zip
+        asset_content_type: application/zip
+
+    - name: 📤 Upload Windows Executable
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./dist/BudgetManage.exe
+        asset_name: BudgetManage.exe
+        asset_content_type: application/octet-stream
+
+  build-and-upload-docker:
+    name: 🐳 Build & Upload Docker
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🏗️ Build Docker image
+      run: |
+        docker build -t budgetmanage:${{ needs.create-release.outputs.tag_name }} .
+        docker tag budgetmanage:${{ needs.create-release.outputs.tag_name }} budgetmanage:latest
+
+    - name: 💾 Save Docker image
+      run: |
+        docker save budgetmanage:${{ needs.create-release.outputs.tag_name }} > budgetmanage-docker.tar
+        gzip budgetmanage-docker.tar
+
+    - name: 📤 Upload Docker image
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./budgetmanage-docker.tar.gz
+        asset_name: budgetmanage-docker.tar.gz
+        asset_content_type: application/gzip
+
+  notify-release:
+    name: 📢 Notify Release
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-upload-windows, build-and-upload-docker]
+    if: always()
+    
+    steps:
+    - name: 📢 Notify Success
+      if: needs.build-and-upload-windows.result == 'success' && needs.build-and-upload-docker.result == 'success'
+      run: |
+        echo "🎉 Release ${{ needs.create-release.outputs.tag_name }} created successfully!"
+        echo "Assets uploaded:"
+        echo "- Windows Portable ZIP"
+        echo "- Windows Executable"
+        echo "- Docker Image"
+
+    - name: 📢 Notify Failure
+      if: needs.build-and-upload-windows.result == 'failure' || needs.build-and-upload-docker.result == 'failure'
+      run: |
+        echo "❌ Release ${{ needs.create-release.outputs.tag_name }} failed!"

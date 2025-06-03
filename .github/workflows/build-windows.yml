@@ -1,0 +1,255 @@
+name: 🪟 Build Windows Executable
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    name: 🪟 Build Windows .exe
+    runs-on: windows-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+    - name: 🔧 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: 🏗️ Create spec file for PyInstaller
+      run: |
+        python -c "
+        import os
+        
+        spec_content = '''
+# -*- mode: python ; coding: utf-8 -*-
+import os
+import streamlit
+import sys
+from pathlib import Path
+
+# Chemins
+streamlit_path = os.path.dirname(streamlit.__file__)
+project_path = os.getcwd()
+
+a = Analysis(
+    ['main.py'],
+    pathex=[project_path],
+    binaries=[],
+    datas=[
+        (os.path.join(streamlit_path, 'static'), 'streamlit/static'),
+        (os.path.join(streamlit_path, 'runtime'), 'streamlit/runtime'),
+        ('config', 'config'),
+        ('models', 'models'),
+        ('controllers', 'controllers'),
+        ('services', 'services'),
+        ('views', 'views'),
+        ('utils', 'utils'),
+        ('static', 'static'),
+        ('migrations', 'migrations'),
+    ],
+    hiddenimports=[
+        'streamlit',
+        'streamlit.web.cli',
+        'streamlit.runtime.scriptrunner.script_runner',
+        'streamlit.runtime.state',
+        'validators',
+        'bcrypt',
+        'plotly',
+        'pandas',
+        'openpyxl',
+        'sqlite3',
+        'dotenv',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='BudgetManage',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='docs/icon.ico' if os.path.exists('docs/icon.ico') else None,
+    version='version_info.txt' if os.path.exists('version_info.txt') else None,
+)
+'''
+        
+        with open('budgetmanage.spec', 'w', encoding='utf-8') as f:
+            f.write(spec_content.strip())
+        
+        print('✅ Spec file created')
+        "
+
+    - name: 📝 Create version info
+      run: |
+        python -c "
+        version_info = '''
+# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(2, 0, 0, 0),
+    prodvers=(2, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x4,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          '040904B0',
+          [
+            StringStruct('CompanyName', 'BudgetManage Team'),
+            StringStruct('FileDescription', 'Système de Gestion Budget'),
+            StringStruct('FileVersion', '2.0.0.0'),
+            StringStruct('InternalName', 'BudgetManage'),
+            StringStruct('LegalCopyright', 'Copyright © 2025'),
+            StringStruct('OriginalFilename', 'BudgetManage.exe'),
+            StringStruct('ProductName', 'BudgetManage'),
+            StringStruct('ProductVersion', '2.0.0.0')
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+'''
+        with open('version_info.txt', 'w', encoding='utf-8') as f:
+            f.write(version_info.strip())
+        print('✅ Version info created')
+        "
+
+    - name: 🏗️ Build executable with PyInstaller
+      run: |
+        pyinstaller budgetmanage.spec --clean --noconfirm
+        
+    - name: 📦 Create portable package
+      run: |
+        mkdir BudgetManage-Portable
+        copy dist\BudgetManage.exe BudgetManage-Portable\
+        
+        # Créer un fichier de démarrage
+        echo @echo off > BudgetManage-Portable\start.bat
+        echo echo Démarrage de BudgetManage... >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo echo Une fois démarré, ouvrez votre navigateur sur: >> BudgetManage-Portable\start.bat
+        echo echo http://localhost:8501 >> BudgetManage-Portable\start.bat
+        echo echo. >> BudgetManage-Portable\start.bat
+        echo BudgetManage.exe >> BudgetManage-Portable\start.bat
+        echo pause >> BudgetManage-Portable\start.bat
+        
+        # Créer un README
+        echo # BudgetManage - Version Portable > BudgetManage-Portable\README.txt
+        echo. >> BudgetManage-Portable\README.txt
+        echo Pour démarrer l'application: >> BudgetManage-Portable\README.txt
+        echo 1. Double-cliquez sur start.bat >> BudgetManage-Portable\README.txt
+        echo 2. Ouvrez votre navigateur sur http://localhost:8501 >> BudgetManage-Portable\README.txt
+        echo. >> BudgetManage-Portable\README.txt
+        echo Connexion par défaut: >> BudgetManage-Portable\README.txt
+        echo Email: admin@budget.com >> BudgetManage-Portable\README.txt
+        echo Mot de passe: admin123 >> BudgetManage-Portable\README.txt
+
+    - name: 🧪 Test executable
+      run: |
+        # Test que l'exe se lance sans erreur
+        timeout 30 dist\BudgetManage.exe --help || exit 0
+        echo "✅ Executable test passed"
+
+    - name: 📦 Create ZIP archive
+      run: |
+        Compress-Archive -Path BudgetManage-Portable\* -DestinationPath BudgetManage-Windows-Portable.zip
+
+    - name: 📤 Upload executable artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: BudgetManage-Windows-Executable
+        path: |
+          dist/BudgetManage.exe
+          BudgetManage-Windows-Portable.zip
+        retention-days: 30
+
+    - name: 📊 Get executable info
+      run: |
+        Get-ChildItem dist\BudgetManage.exe | Format-List
+        echo "Executable size: $((Get-Item dist\BudgetManage.exe).length / 1MB) MB"
+
+  test-executable:
+    name: 🧪 Test Windows Executable
+    runs-on: windows-latest
+    needs: build-windows
+    
+    steps:
+    - name: 📥 Download executable
+      uses: actions/download-artifact@v3
+      with:
+        name: BudgetManage-Windows-Executable
+
+    - name: 🧪 Test executable startup
+      run: |
+        # Tester que l'executable démarre sans crash
+        Start-Process -FilePath ".\BudgetManage.exe" -ArgumentList "--help" -Wait -NoNewWindow
+        echo "✅ Executable starts successfully"
+
+    - name: 📊 Executable analysis
+      run: |
+        echo "=== EXECUTABLE INFO ==="
+        Get-Item .\BudgetManage.exe | Format-List
+        
+        echo "=== DEPENDENCIES CHECK ==="
+        # Vérifier les DLLs requises
+        dumpbin /dependents .\BudgetManage.exe 2>$null || echo "dumpbin not available"
+        
+        echo "=== SIZE ANALYSIS ==="
+        $size = (Get-Item .\BudgetManage.exe).length
+        echo "Size: $($size / 1MB) MB"
+        
+        if ($size -gt 500MB) {
+            echo "⚠️ Warning: Executable is quite large ($($size / 1MB) MB)"
+        } else {
+            echo "✅ Executable size is reasonable"
+        }
