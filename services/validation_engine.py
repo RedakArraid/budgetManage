@@ -38,6 +38,9 @@ class ValidationEngine:
             validator_info = ValidationEngine._get_validator_info(validator_id)
             if not validator_info:
                 return False, "Validateur non trouvé"
+
+            # Debug: Afficher le rôle du validateur
+            print(f"[DEBUG] ValidationEngine.validate_demande called by Valideur ID: {validator_id}, Role: {validator_info.get('role')}")
             
             # Vérifier les permissions de validation
             can_validate, permission_msg = ValidationEngine._check_validation_permission(

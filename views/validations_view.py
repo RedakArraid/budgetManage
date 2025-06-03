@@ -8,6 +8,7 @@ from controllers.auth_controller import AuthController
 from controllers.demande_controller import DemandeController
 from config.settings import get_status_info
 from utils.date_utils import format_date
+from models.user import UserModel
 
 @AuthController.require_role(['dr', 'dr_financier', 'dg'])
 def validations_page():
@@ -312,39 +313,85 @@ def _display_validation_card(row, user_info):
             st.markdown(f"- **Email Demandeur:** {row.get('email','N/A')}") # Utiliser 'email' du JOIN
             st.markdown(f"- **Rôle Demandeur:** {row.get('user_role','N/A')}") # Utiliser 'user_role' du JOIN
             st.markdown(f"- **Statut:** {get_status_info(row.get('status','N/A'))['label']}")
-            st.markdown(f"- **Urgence:** {urgence.title()}")
+            st.markdown(f"- **Urgence:** {row.get('urgence','normale').title()}")
             st.markdown(f"- **Créée le:** {format_date(row.get('created_at'))}")
             st.markdown(f"- **Modifiée le:** {format_date(row.get('updated_at'))}")
 
-            # Afficher l'historique de validation si disponible
-            if row.get('date_validation_dr'):
-                st.markdown(f"✅ **Validé par DR:** {format_date(row['date_validation_dr'])}")
-                if row.get('commentaire_dr'):
-                    st.markdown(f"💬 *{row['commentaire_dr']}*")
-            if row.get('date_validation_financier'): # Vérifier si le nom de colonne est correct dans le DataFrame
-                 st.markdown(f"✅ **Validé par Financier:** {format_date(row['date_validation_financier'])}")
-                 if row.get('commentaire_financier'):
-                     st.markdown(f"💬 *{row['commentaire_financier']}*")
-            # Ajouter DG si nécessaire, vérifier nom de colonne (ex: date_validation_dg, commentaire_dg)
-            if row.get('date_validation_dg'):
-                 st.markdown(f"✅ **Validé par DG:** {format_date(row['date_validation_dg'])}")
-                 if row.get('commentaire_dg'):
-                      st.markdown(f"💬 *{row['commentaire_dg']}*")
+            # --- Statut Validations: DR, Financier, DG ---
+            st.markdown("**Statut Validations:**")
+            from models.user import UserModel # Importer ici pour éviter les dépendances circulaires
 
-        # Commentaires généraux sous les colonnes
-        if row.get('commentaires'):
-            st.markdown("**💭 Commentaires Généraux:**")
-            st.markdown(row.get('commentaires'))
+            # Statut DR
+            dr_validated_id = row.get('valideur_dr_id')
+            dr_status_text = "⏳ En attente DR"
+            if dr_validated_id is not None:
+                 # Assurer que l'ID est un entier valide avant de chercher l'utilisateur
+                 if isinstance(dr_validated_id, (int, float)) and not pd.isna(dr_validated_id):
+                      dr_validated_id = int(dr_validated_id)
+                      dr_validator = UserModel.get_user_by_id(dr_validated_id)
+                      if dr_validator:
+                           dr_status_text = f"✅ Validé par {dr_validator.get('prenom', '')} {dr_validator.get('nom', '')} : {format_date(row.get('date_validation_dr'))}"
+                      else:
+                           dr_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dr'))}" # Moins verbeux
+                 else:
+                     # Cas où l'ID est présent mais invalide (ex: NaN)
+                     dr_status_text = "⏳ En attente DR (ID invalide)" # Optionnel, pour debug si besoin
 
-        st.markdown("---") # Séparateur avant les actions
+            st.markdown(f"- {dr_status_text}")
+            if dr_validated_id is not None and row.get('commentaire_dr'): # Afficher commentaire si validé
+                st.markdown(f"💬 *{row.get('commentaire_dr')}*")
 
-        # Actions disponibles (maintenant à l'intérieur de l'expander)
-        _display_validation_actions(row, user_info)
+            # Statut Financier
+            fin_validated_id = row.get('valideur_financier_id')
+            fin_status_text = "⏳ En attente Financier"
+            if fin_validated_id is not None:
+                 if isinstance(fin_validated_id, (int, float)) and not pd.isna(fin_validated_id):
+                      fin_validated_id = int(fin_validated_id)
+                      fin_validator = UserModel.get_user_by_id(fin_validated_id)
+                      if fin_validator:
+                           fin_status_text = f"✅ Validé par {fin_validator.get('prenom', '')} {fin_validator.get('nom', '')} : {format_date(row.get('date_validation_financier'))}"
+                      else:
+                           fin_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_financier'))}"
+                 # else: fin_status_text reste "⏳ En attente Financier" si ID invalide mais pas None
+
+            st.markdown(f"- {fin_status_text}")
+            if fin_validated_id is not None and row.get('commentaire_financier'):
+                st.markdown(f"💬 *{row.get('commentaire_financier')}*")
+
+            # Statut DG
+            dg_validated_id = row.get('valideur_dg_id')
+            dg_status_text = "⏳ En attente DG"
+            if dg_validated_id is not None:
+                if isinstance(dg_validated_id, (int, float)) and not pd.isna(dg_validated_id):
+                     dg_validated_id = int(dg_validated_id)
+                     dg_validator = UserModel.get_user_by_id(dg_validated_id)
+                     if dg_validator:
+                          dg_status_text = f"✅ Validé par {dg_validator.get('prenom', '')} {dg_validator.get('nom', '')} : {format_date(row.get('date_validation_dg'))}"
+                     else:
+                          dg_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dg'))}"
+                # else: dg_status_text reste "⏳ En attente DG" si ID invalide mais pas None
+
+            st.markdown(f"- {dg_status_text}")
+            if dg_validated_id is not None and row.get('commentaire_dg'):
+                st.markdown(f"💬 *{row.get('commentaire_dg')}*")
+
+            # Commentaires généraux sous les colonnes
+            if row.get('commentaires'):
+                st.markdown("**💭 Commentaires Généraux:**")
+                st.markdown(row.get('commentaires'))
+
+            st.markdown("---") # Séparateur avant les actions
+
+            # Actions disponibles (maintenant à l'intérieur de l'expander)
+            _display_validation_actions(row, user_info)
 
 def _display_validation_actions(row, user_info):
     """Affiche les actions de validation - Version corrigée"""
     role = user_info['role']
     demande_id = row['id']
+    
+    # Debug: Afficher le rôle perçu par cette fonction pour cette demande
+    print(f"[DEBUG] _display_validation_actions - Demande ID: {demande_id}, Perceived Role: {role}, Demande Status: {row['status']}")
     
     # Debug info pour diagnostiquer les problèmes
     if st.checkbox(f"Debug demande {demande_id}", key=f"debug_{demande_id}"):
@@ -427,6 +474,11 @@ def _display_validation_actions(row, user_info):
             else:
                 if st.button(f"✅ Valider ({role})", key=f"val_fin_{demande_id}", use_container_width=True, type="primary"):
                     try:
+                        # Debug: Vérifier si le bouton Valider Financier/DG est cliqué
+                        print(f"[DEBUG] Valider ({role}) button clicked for demande {demande_id}")
+                        # Debug: Marquer que le bouton a été cliqué
+                        st.session_state[f'val_fin_{demande_id}_clicked'] = True
+                        
                         with st.spinner(f"Validation {role} en cours..."):
                             success, message = DemandeController.validate_demande(
                                 demande_id, 

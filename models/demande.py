@@ -356,19 +356,40 @@ class DemandeModel:
                     if isinstance(status_filter, list):
                         # Handle list of statuses
                         placeholders = ', '.join(['?' for _ in status_filter])
-                        where_conditions.append(f"d.status IN ({placeholders})")
+                        # Correction: Use 'status' directly instead of 'd.status' after UNION
+                        status_condition = f"status IN ({placeholders})" 
                         params.extend(status_filter)
                     else:
                         # Handle single status
-                        where_conditions.append("d.status = ?")
+                        # Correction: Use 'status' directly instead of 'd.status' after UNION
+                        status_condition = "status = ?"
                         params.append(status_filter)
-                
+                    
+                    # Add status condition to where_conditions
+                    where_conditions.append(status_condition)
+
                 # Pour les requêtes UNION, nous devons encapsuler dans un SELECT externe pour les filtres
-                if "UNION" in base_query and where_conditions:
+                # La clause WHERE pour les filtres doit être appliquée à l'alias combined_results
+                if "UNION" in base_query and (search_query or status_filter != "tous"):
+                    # Pour les requêtes UNION, l'alias d. n'est pas disponible dans la WHERE externe
+                    # Assurons-nous que les conditions ne référencent pas 'd.' inutilement ici
+                    # La condition sur 'status' est déjà corrigée ci-dessus.
+                    # Pour la recherche textuelle, l'alias d. est utilisé, ce qui est correct DANS la subquery.
+                    # La clause WHERE externe doit donc faire référence aux colonnes SANS l'alias d.
+                    # Cela nécessite de re-formater les where_conditions si elles viennent de la recherche
+                    # Simplifions : Appliquons TOUTES les conditions sur combined_results
+                    final_where_conditions = []
+                    for cond in where_conditions:
+                        # Remplacer d. par l'alias combiné si nécessaire pour les filtres externes
+                        # Note: Pour ce cas d'usage simple (status et recherche), on peut juste utiliser le nom de colonne direct.
+                        # Si des conditions complexes avec alias étaient nécessaires, il faudrait une logique plus sophistiquée.
+                        final_where_conditions.append(cond.replace('d.nom_manifestation', 'nom_manifestation').replace('d.client', 'client').replace('d.lieu', 'lieu').replace('d.status', 'status'))
+
                     base_query = f"SELECT * FROM ({base_query}) AS combined_results"
-                    if where_conditions:
-                        base_query += " WHERE " + " AND ".join(where_conditions)
+                    if final_where_conditions:
+                        base_query += " WHERE " + " AND ".join(final_where_conditions)
                 elif where_conditions:
+                    # Cas sans UNION, les conditions s'appliquent directement avec l'alias d.
                     if "WHERE" in base_query:
                         base_query += " AND " + " AND ".join(where_conditions)
                     else:
@@ -510,7 +531,10 @@ class DemandeModel:
                         commentaire: str = "") -> tuple[bool, str]:
         """Validate or reject a demande - Utilise le moteur centralisé"""
         try:
+            # Valider via le moteur de validation
             from services.validation_engine import validation_engine
+            # Debug: Afficher le rôle du valideur (à placer DANS le validation_engine)
+            # print(f"[DEBUG] validate_demande called by Valideur ID: {valideur_id}, Action: {action}, Commentaire: {commentaire}")
             return validation_engine.validate_demande(demande_id, valideur_id, action, commentaire)
         except Exception as e:
             print(f"Erreur validation demande: {e}")
