@@ -65,3 +65,9 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# SharePoint deployment artifacts (temporary)
+BudgetManage-SharePoint/
+BudgetManage-SharePoint-Ready.zip
+auto.spec
+budgetmanage_auto.spec
