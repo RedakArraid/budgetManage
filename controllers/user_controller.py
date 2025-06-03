@@ -1,5 +1,5 @@
 """
-User controller for CRUD operations
+User controller for CRUD operations - VERSION CORRIGÉE
 """
 import streamlit as st
 from typing import Optional, Dict, Any, List, Tuple
@@ -79,6 +79,92 @@ class UserController:
             return False, f"Erreur: {str(e)}"
     
     @staticmethod
+    def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+        """Get user by ID"""
+        try:
+            return UserModel.get_user_by_id(user_id)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération de l'utilisateur: {e}")
+            return None
+    
+    @staticmethod
+    def change_password(user_id: int, new_password: str) -> bool:
+        """Change user password"""
+        try:
+            from utils.security import hash_password
+            password_hash = hash_password(new_password)
+            
+            success = UserModel.update_user(user_id, password_hash=password_hash)
+            
+            if success:
+                # Log de l'activité
+                user_info = UserModel.get_user_by_id(user_id)
+                ActivityLogModel.log_activity(
+                    user_id, None, 'change_password',
+                    f"Changement de mot de passe pour {user_info['email'] if user_info else user_id}"
+                )
+                
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            return False
+    
+    @staticmethod
+    def update_user_profile(user_id: int, prenom: str, nom: str, region: str = None) -> bool:
+        """Update user profile information"""
+        try:
+            # Préparer les données à mettre à jour
+            update_data = {
+                'prenom': prenom,
+                'nom': nom
+            }
+            
+            if region:
+                update_data['region'] = region
+            
+            success = UserModel.update_user(user_id, **update_data)
+            
+            if success:
+                # Log de l'activité
+                user_info = UserModel.get_user_by_id(user_id)
+                ActivityLogModel.log_activity(
+                    user_id, None, 'update_profile',
+                    f"Mise à jour du profil pour {user_info['email'] if user_info else user_id}"
+                )
+                
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            return False
+    
+    @staticmethod
+    def reset_password(user_id: int) -> Tuple[bool, str]:
+        """Reset user password"""
+        try:
+            new_password = "NewPass123!"
+            success = UserModel.reset_password(user_id, new_password)
+            
+            if success:
+                # Log de l'activité
+                current_user_id = AuthController.get_current_user_id()
+                user_info = UserModel.get_user_by_id(user_id)
+                ActivityLogModel.log_activity(
+                    current_user_id, None, 'reset_password',
+                    f"Réinitialisation mot de passe {user_info['email'] if user_info else user_id}"
+                )
+                
+                return True, f"Mot de passe réinitialisé: {new_password}"
+            else:
+                return False, "Erreur lors de la réinitialisation"
+                
+        except Exception as e:
+            return False, f"Erreur: {str(e)}"
+    
+    @staticmethod
     def get_all_users(search_query: str = "", role_filter: str = "tous", 
                      status_filter: str = "tous") -> pd.DataFrame:
         """Get all users with filters"""
@@ -112,48 +198,9 @@ class UserController:
             return pd.DataFrame()
     
     @staticmethod
-    def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
-        """Get user by ID"""
-        try:
-            return UserModel.get_user_by_id(user_id)
-        except Exception as e:
-            st.error(f"Erreur lors de la récupération de l'utilisateur: {e}")
-            return None
-    
-    @staticmethod
     def update_user(user_id: int, **kwargs) -> Tuple[bool, str]:
         """Update user information"""
         try:
-            # Validation des champs si fournis
-            if 'email' in kwargs and not validate_email(kwargs['email']):
-                return False, "Format d'email invalide"
-            
-            if 'nom' in kwargs and not validate_text_field(kwargs['nom'], min_length=2):
-                return False, "Le nom doit contenir au moins 2 caractères"
-            
-            if 'prenom' in kwargs and not validate_text_field(kwargs['prenom'], min_length=2):
-                return False, "Le prénom doit contenir au moins 2 caractères"
-            
-            if 'role' in kwargs and kwargs['role'] not in role_config.roles:
-                return False, "Rôle invalide"
-            
-            # Règles spécifiques
-            if 'role' in kwargs:
-                role = kwargs['role']
-                if role == 'dr' and 'region' in kwargs and not kwargs['region']:
-                    return False, "Une région doit être sélectionnée pour un DR"
-                
-                if role == 'tc' and 'directeur_id' in kwargs and not kwargs['directeur_id']:
-                    return False, "Un directeur doit être sélectionné pour un TC"
-                
-                # Si changement vers TC, vérifier et ajuster la région
-                if role == 'tc' and 'directeur_id' in kwargs:
-                    dr_info = UserModel.get_user_by_id(kwargs['directeur_id'])
-                    if not dr_info or dr_info['role'] != 'dr':
-                        return False, "Directeur invalide"
-                    kwargs['region'] = dr_info['region']  # Région automatique
-            
-            # Mise à jour
             success = UserModel.update_user(user_id, **kwargs)
             
             if success:
@@ -221,29 +268,6 @@ class UserController:
             return False, f"Erreur: {str(e)}"
     
     @staticmethod
-    def reset_password(user_id: int) -> Tuple[bool, str]:
-        """Reset user password"""
-        try:
-            new_password = "NewPass123!"
-            success = UserModel.reset_password(user_id, new_password)
-            
-            if success:
-                # Log de l'activité
-                current_user_id = AuthController.get_current_user_id()
-                user_info = UserModel.get_user_by_id(user_id)
-                ActivityLogModel.log_activity(
-                    current_user_id, None, 'reset_password',
-                    f"Réinitialisation mot de passe {user_info['email'] if user_info else user_id}"
-                )
-                
-                return True, f"Mot de passe réinitialisé: {new_password}"
-            else:
-                return False, "Erreur lors de la réinitialisation"
-                
-        except Exception as e:
-            return False, f"Erreur: {str(e)}"
-    
-    @staticmethod
     def get_directors() -> List[Dict[str, Any]]:
         """Get all directors (DR) for TC assignment"""
         try:
@@ -287,23 +311,6 @@ class UserController:
             
         except Exception as e:
             st.error(f"Erreur lors du calcul des statistiques: {e}")
-            return {}
-    
-    @staticmethod
-    def permanently_delete_user(user_id: int) -> Tuple[bool, str]:
-        """Permanently delete a user and all related data (ADMIN ONLY)"""
-        try:
-            return UserModel.permanently_delete_user(user_id)
-        except Exception as e:
-            return False, f"Erreur: {str(e)}"
-    
-    @staticmethod
-    def get_user_dependencies(user_id: int) -> Dict[str, int]:
-        """Get user dependencies before deletion"""
-        try:
-            return UserModel.get_user_dependencies(user_id)
-        except Exception as e:
-            st.error(f"Erreur lors de la récupération des dépendances: {e}")
             return {}
     
     @staticmethod

@@ -87,22 +87,22 @@ class PermissionService:
     _ROLE_PAGES = {
         Role.ADMIN: [
             'dashboard', 'admin_create_demande', 'demandes', 'gestion_utilisateurs',
-            'admin_dropdown_options', 'validations', 'analytics', 'notifications'
+            'admin_dropdown_options', 'validations', 'analytics', 'notifications', 'account_settings'
         ],
         Role.TC: [
-            'dashboard', 'nouvelle_demande', 'demandes', 'analytics', 'notifications'
+            'dashboard', 'nouvelle_demande', 'demandes', 'analytics', 'notifications', 'account_settings'
         ],
         Role.DR: [
-            'dashboard', 'nouvelle_demande', 'demandes', 'validations', 'analytics', 'notifications'
+            'dashboard', 'nouvelle_demande', 'demandes', 'validations', 'analytics', 'notifications', 'account_settings'
         ],
         Role.DR_FINANCIER: [
-            'dashboard', 'demandes', 'validations', 'analytics', 'notifications'
+            'dashboard', 'demandes', 'validations', 'analytics', 'notifications', 'account_settings'
         ],
         Role.DG: [
-            'dashboard', 'demandes', 'validations', 'analytics', 'notifications'
+            'dashboard', 'demandes', 'validations', 'analytics', 'notifications', 'account_settings'
         ],
         Role.MARKETING: [
-            'dashboard', 'nouvelle_demande', 'demandes', 'analytics', 'notifications'
+            'dashboard', 'nouvelle_demande', 'demandes', 'analytics', 'notifications', 'account_settings'
         ]
     }
     
