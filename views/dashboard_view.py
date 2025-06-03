@@ -163,40 +163,62 @@ def _display_metrics(role, stats):
             </div>
             """, unsafe_allow_html=True)
 
+# Fonctions utilitaires pour les actions rapides (pour assurer le déclenchement)
+def go_to_nouvelle_demande():
+    st.session_state.page = "nouvelle_demande"
+    st.rerun()
+
+def go_to_gestion_utilisateurs():
+    st.session_state.page = "gestion_utilisateurs"
+    st.rerun()
+
+def go_to_mes_demandes():
+    st.session_state.page = "demandes"
+    st.rerun()
+
+def go_to_validations():
+    st.session_state.page = "validations"
+    st.rerun()
+
+def go_to_analytics():
+    st.session_state.page = "analytics"
+    st.rerun()
+
+def go_to_notifications():
+    st.session_state.page = "notifications"
+    st.rerun()
+
+# Section Actions Rapides
 def _display_quick_actions(role):
-    """Display quick action buttons"""
+    # Utiliser des colonnes pour organiser les boutons
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         if role in ['tc', 'dr', 'marketing']:
-            if st.button("➕ Nouvelle Demande", use_container_width=True):
-                st.session_state.page = "nouvelle_demande"
-                st.rerun()
+            if st.button("➕ Nouvelle Demande", use_container_width=True, key='quick_action_new_demande'):
+                go_to_nouvelle_demande()
         elif role == 'admin':
-            if st.button("👥 Gestion Utilisateurs", use_container_width=True):
-                st.session_state.page = "gestion_utilisateurs"
-                st.rerun()
-    
+            if st.button("👥 Gestion Utilisateurs", use_container_width=True, key='quick_action_manage_users'):
+                go_to_gestion_utilisateurs()
+
     with col2:
-        if st.button("📋 Mes Demandes", use_container_width=True):
-            st.session_state.page = "demandes"
-            st.rerun()
-    
+        if st.button("📋 Mes Demandes", use_container_width=True, key='quick_action_mes_demandes'):
+            go_to_mes_demandes()
+
     with col3:
         if role in ['dr', 'dr_financier', 'dg']:
-            if st.button("✅ Validations", use_container_width=True):
-                st.session_state.page = "validations"
-                st.rerun()
+            if st.button("✅ Validations", use_container_width=True, key='quick_action_validations'):
+                go_to_validations()
         else:
-            if st.button("📊 Analytics", use_container_width=True):
-                st.session_state.page = "analytics"
-                st.rerun()
-    
-    with col4:
-        if st.button("🔔 Notifications", use_container_width=True):
-            st.session_state.page = "notifications"
-            st.rerun()
+            if st.button("📊 Analytics", use_container_width=True, key='quick_action_analytics'):
+                go_to_analytics()
 
+    with col4:
+        if st.button("🔔 Notifications", use_container_width=True, key='quick_action_notifications'):
+            go_to_notifications()
+
+
+# Section Demandes Récentes (affichée pour tous sauf admin)
 def _display_recent_demandes(user_id, role):
     """Display recent demandes"""
     demandes = DemandeController.get_demandes_for_user(user_id, role)

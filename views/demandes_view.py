@@ -313,6 +313,19 @@ def _display_cards_view(demandes, user_info):
             
             # Actions disponibles
             _display_demande_actions(row, user_info)
+            
+            # Add delete button for admins
+            if user_info['role'] == 'admin':
+                with st.form(key=f'delete_demande_form_{row['id']}', clear_on_submit=True):
+                    st.write("⚠️ **Danger Zone**")
+                    if st.form_submit_button("Supprimer la demande", type="secondary", help="Supprimer définitivement cette demande (action irréversible)"):
+                         with OperationFeedback.delete_demande():
+                            success, message = DemandeController.admin_delete_demande(row['id'], user_info['id'])
+                            if success:
+                                st.success(message)
+                                st.rerun()
+                            else:
+                                st.error(message)
 
 def _display_demande_actions(row, user_info):
     """Affiche les actions disponibles pour une demande"""

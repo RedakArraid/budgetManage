@@ -150,6 +150,14 @@ class OperationFeedback:
         """Feedback pour chargement des options de filtres"""
         return loading_spinner("🔄 Chargement des options...")
 
+    @staticmethod
+    def delete_demande():
+        """Feedback pour suppression de demande"""
+        return smart_spinner(
+            SpinnerMessages.DB_DELETING,
+            "✅ Demande supprimée avec succès !"
+        )
+
 # Décorateur pour ajouter automatiquement un spinner
 def with_spinner(message: str = SpinnerMessages.PROCESSING):
     """

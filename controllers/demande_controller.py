@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import pandas as pd
 from models.demande import DemandeModel
 from models.activity_log import ActivityLogModel
+from models.database import db
 
 class DemandeController:
     """Contrôleur pour la gestion des demandes"""
@@ -19,6 +20,9 @@ class DemandeController:
                       demandeur_participe: bool = True, participants_libres: str = "",
                       selected_participants: List[int] = None) -> Tuple[bool, Optional[int]]:
         """Créer une nouvelle demande avec gestion des participants ET validation centralisée"""
+        
+        print(f"[DEBUG] create_demande called by user_id: {user_id} with type: {type_demande}")
+        print(f"[DEBUG] Nom manifestation: {nom_manifestation}, Client: {client}, Montant: {montant}")
         
         # VALIDATION OBLIGATOIRE via le système centralisé
         from utils.dropdown_manager import DropdownSecurityLayer
@@ -95,6 +99,7 @@ class DemandeController:
                     for participant_id in selected_participants:
                         ParticipantModel.add_participant(demande_id, participant_id, user_id)
         
+        print(f"[DEBUG] create_demande returning success: {success}, demande_id: {demande_id}")
         return success, demande_id
     
     @staticmethod
@@ -289,7 +294,6 @@ class DemandeController:
     def get_validation_stats(user_id: int, role: str) -> Dict[str, Any]:
         """Récupérer les statistiques de validation pour un utilisateur"""
         try:
-            from models.database import db
             from datetime import datetime, timedelta
             
             stats = {
@@ -379,12 +383,26 @@ class DemandeController:
     
     @staticmethod
     def permanently_delete_demande(demande_id: int) -> Tuple[bool, str]:
-        """Permanently delete a demande and all related data (ADMIN ONLY)"""
+        """Supprimer définitivement une demande (utilisé par l'admin)"""
         try:
-            from models.demande import DemandeModel
-            return DemandeModel.permanently_delete_demande(demande_id)
+            # Vérifier si la demande existe
+            demande = DemandeModel.get_demande_by_id(demande_id)
+            if not demande:
+                return False, "Demande non trouvée."
+
+            # Supprimer les participants liés
+            db.execute_query('DELETE FROM demande_participants WHERE demande_id = ?', (demande_id,))
+
+            # Supprimer les logs d'activité liés
+            db.execute_query('DELETE FROM activity_log WHERE demande_id = ?', (demande_id,))
+
+            # Supprimer la demande elle-même
+            db.execute_query('DELETE FROM demandes WHERE id = ?', (demande_id,))
+
+            return True, "Demande supprimée avec succès."
         except Exception as e:
-            return False, f"Erreur: {str(e)}"
+            print(f"Erreur suppression définitive demande: {e}")
+            return False, f"Erreur lors de la suppression de la demande: {e}"
     
     @staticmethod
     def get_demande_dependencies(demande_id: int) -> Dict[str, int]:
@@ -394,3 +412,25 @@ class DemandeController:
             return DemandeModel.get_demande_dependencies(demande_id)
         except Exception as e:
             return {}
+    
+    @staticmethod
+    def admin_delete_demande(demande_id: int, admin_user_id: int) -> Tuple[bool, str]:
+        """Permet à un administrateur de supprimer définitivement une demande"""
+        from models.user import UserModel
+        
+        # Vérifier que l'utilisateur est bien un admin
+        admin_user = UserModel.get_user_by_id(admin_user_id)
+        if not admin_user or admin_user['role'] != 'admin':
+            return False, "Action non autorisée. Seuls les administrateurs peuvent supprimer des demandes de manière permanente."
+            
+        # Appeler la méthode de suppression permanente du modèle
+        success, message = DemandeModel.permanently_delete_demande(demande_id)
+        
+        if success:
+            # Logger l'activité
+            ActivityLogModel.log_activity(
+                admin_user_id, demande_id, 'admin_suppression_demande',
+                f"Suppression définitive de la demande ID {demande_id} par l'admin"
+            )
+        
+        return success, message

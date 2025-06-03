@@ -63,6 +63,22 @@ def initialize_app():
     # Charge et applique les styles CSS personnalisés.
     st.markdown(load_css(), unsafe_allow_html=True)
 
+    # Inject custom CSS for sidebar background
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {
+                background-color: #000000;
+            }
+             /* Style for the main content area background */
+            [data-testid="stAppViewContainer"] .main {
+                background-color: #1a1a1a;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     # Initialise l'état de session centralisé
     from utils.session_manager import session_manager
     session_manager.init_session()

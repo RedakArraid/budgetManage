@@ -39,6 +39,117 @@ def nouvelle_demande_page():
     if not budget_options and not categorie_options:
         st.error("⚠️ Impossible de charger les options des listes déroulantes. Contactez l'administrateur.")
         st.info("📄 Les options doivent d'abord être définies dans la page 'Listes Déroulantes' par un administrateur.")
+        
+        # Afficher un formulaire simplifié même sans options
+        st.markdown("---")
+        st.markdown("### 🛠️ Mode Dégradé - Formulaire Simplifié")
+        st.warning("💡 En attendant la configuration des listes déroulantes, vous pouvez utiliser ce formulaire simplifié.")
+        
+        with st.form("nouvelle_demande_form_simple"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                nom_manifestation = st.text_input(
+                    "📝 Nom de la manifestation*", 
+                    placeholder="Ex: Salon du Marketing 2024"
+                )
+                client = st.text_input(
+                    "🏢 Client*", 
+                    placeholder="Ex: Entreprise ABC"
+                )
+                lieu = st.text_input(
+                    "📍 Lieu*", 
+                    placeholder="Ex: Paris, France"
+                )
+            
+            with col2:
+                montant = st.number_input(
+                    "💰 Montant (€)*", 
+                    min_value=0.0, 
+                    step=50.0,
+                    help="Montant en euros"
+                )
+                date_evenement = st.date_input(
+                    "📅 Date de l'événement*",
+                    value=date.today(),
+                    min_value=date.today()
+                )
+                urgence = st.selectbox(
+                    "🚨 Urgence",
+                    options=['normale', 'urgent', 'critique'],
+                    format_func=lambda x: {
+                        'normale': '�︢ Normale',
+                        'urgent': '�︡ Urgent',
+                        'critique': '🔴 Critique'
+                    }[x]
+                )
+            
+            commentaires = st.text_area(
+                "💭 Commentaires", 
+                placeholder="Informations complémentaires, justifications...",
+                height=100
+            )
+            
+            # Actions
+            col1, col2 = st.columns(2)
+            with col1:
+                submit_simple = st.form_submit_button(
+                    "📤 Créer Demande Simplifiée", 
+                    use_container_width=True,
+                    type="primary"
+                )
+            with col2:
+                if st.form_submit_button("❌ Annuler", use_container_width=True):
+                    st.session_state.page = "dashboard"
+                    st.rerun()
+        
+        # Traitement du formulaire simplifié
+        if submit_simple:
+            if not nom_manifestation or not client or not lieu or montant <= 0:
+                st.error("⚠️ Veuillez remplir tous les champs obligatoires (*)")
+            else:
+                with st.spinner("Création de la demande simplifiée en cours..."):
+                    try:
+                        success, demande_id = DemandeController.create_demande(
+                            user_id=AuthController.get_current_user_id(),
+                            type_demande=type_demande,
+                            nom_manifestation=nom_manifestation,
+                            client=client,
+                            date_evenement=date_evenement.strftime('%Y-%m-%d'),
+                            lieu=lieu,
+                            montant=montant,
+                            participants="",
+                            commentaires=commentaires,
+                            urgence=urgence,
+                            # Valeurs par défaut pour les champs manquants
+                            budget="non_defini",
+                            categorie="non_defini",
+                            typologie_client="non_defini",
+                            groupe_groupement="non_defini",
+                            region=user_info.get('region', 'non_defini'),
+                            agence="non_defini",
+                            client_enseigne="",
+                            mail_contact="",
+                            nom_contact="",
+                            demandeur_participe=True,
+                            participants_libres="",
+                            selected_participants=[]
+                        )
+                        
+                        if success:
+                            st.success("✅ Demande simplifiée créée avec succès!")
+                            st.info("💡 Cette demande pourra être complétée plus tard quand les listes déroulantes seront configurées.")
+                            st.balloons()
+                            
+                            if st.button("← Retour au tableau de bord", type="secondary"):
+                                st.session_state.page = "dashboard"
+                                st.rerun()
+                        else:
+                            st.error("❌ Erreur lors de la création de la demande")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Erreur: {e}")
+        
         return
     
     with st.form("nouvelle_demande_form"):
