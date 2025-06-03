@@ -237,6 +237,54 @@ def _display_delete_confirmation(user):
             use_container_width=True,
             type="primary" if can_delete else "secondary",
             disabled=not can_delete
+        ):
+            if can_delete:
+                with st.spinner("🗑️ Suppression complète en cours..."):
+                    success, message = UserController.delete_user_complete(user['id'])
+                
+                if success:
+                    st.success("✅ Utilisateur supprimé définitivement")
+                    # Nettoyage des variables de session
+                    if f"confirm_delete_complete_{user['id']}" in st.session_state:
+                        del st.session_state[f"confirm_delete_complete_{user['id']}"]
+                    if f"confirm_understood_{user['id']}" in st.session_state:
+                        del st.session_state[f"confirm_understood_{user['id']}"]
+                    if f"confirmation_text_{user['id']}" in st.session_state:
+                        del st.session_state[f"confirmation_text_{user['id']}"]
+                    st.rerun()
+                else:
+                    st.error(f"❌ Erreur: {message}")
+
+def _display_inline_delete_confirmation(user):
+    """Afficher la confirmation de suppression dans la carte utilisateur"""
+    st.markdown("---")
+    st.warning(f"⚠️ **Suppression définitive de {user['prenom']} {user['nom']}**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        confirm = st.checkbox(
+            "Je confirme la suppression définitive",
+            key=f"inline_confirm_{user['id']}"
+        )
+    
+    with col2:
+        if confirm:
+            if st.button("🗑️ SUPPRIMER DÉFINITIVEMENT", key=f"inline_delete_{user['id']}", type="primary"):
+                with st.spinner("Suppression en cours..."):
+                    success, message = UserController.delete_user_complete(user['id'])
+                
+                if success:
+                    st.success(message)
+                    if f"confirm_delete_complete_{user['id']}" in st.session_state:
+                        del st.session_state[f"confirm_delete_complete_{user['id']}"]
+                    st.rerun()
+                else:
+                    st.error(message)
+        
+        if st.button("❌ Annuler", key=f"inline_cancel_{user['id']}"):
+            del st.session_state[f"confirm_delete_complete_{user['id']}"]
+            st.rerun()
 
 def _display_edit_user_form(user):
     """Formulaire de modification d'un utilisateur"""
