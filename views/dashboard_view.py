@@ -244,9 +244,9 @@ def _display_demande_card(row):
     status_info = get_status_info(row['status'])
     status_class = f"status-{row['status']}"
     
-    # Changed background color to another dark grey shade (#444444)
+    # Changed background color to match the sidebar background (#000000)
     st.markdown(f"""
-    <div class="demand-card" style="background-color: #444444; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
+    <div class="demand-card" style="background-color: #000000; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1;">
                 <h4 style="margin: 0 0 0.5rem 0; color: #4CAF50;">{row['nom_manifestation']}</h4>
