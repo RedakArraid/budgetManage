@@ -65,37 +65,37 @@ def _display_metrics(role, stats):
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #4CAF50; margin: 0;">{stats.get('total_demandes', 0)}</h3>
-                <p style="margin: 0; color: #888;">Total Demandes</p>
+                <p style="margin: 0; color: #333;">Total Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #ffc107; margin: 0;">{stats.get('en_attente_dr', 0)}</h3>
-                <p style="margin: 0; color: #888;">Attente DR</p>
+                <p style="margin: 0; color: #333;">Attente DR</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #fd7e14; margin: 0;">{stats.get('en_attente_financier', 0)}</h3>
-                <p style="margin: 0; color: #888;">Attente Financier</p>
+                <p style="margin: 0; color: #333;">Attente Financier</p>
             </div>
             """, unsafe_allow_html=True)
         with col4:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #888;">Validées</p>
+                <p style="margin: 0; color: #333;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col5:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
-                <p style="margin: 0; color: #888;">Montant Validé</p>
+                <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -103,23 +103,23 @@ def _display_metrics(role, stats):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #74b9ff; margin: 0;">{stats.get('mes_demandes', 0)}</h3>
-                <p style="margin: 0; color: #888;">Mes Demandes</p>
+                <p style="margin: 0; color: #333;">Mes Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #888;">Validées</p>
+                <p style="margin: 0; color: #333;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
-                <p style="margin: 0; color: #888;">Montant Validé</p>
+                <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -127,16 +127,16 @@ def _display_metrics(role, stats):
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #fdcb6e; margin: 0;">{stats.get('total_demandes', 0)}</h3>
-                <p style="margin: 0; color: #888;">Total Demandes</p>
+                <p style="margin: 0; color: #333;">Total Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #ffc107; margin: 0;">{stats.get('en_attente_validation', 0)}</h3>
-                <p style="margin: 0; color: #888;">En Attente Validation</p>
+                <p style="margin: 0; color: #333;">En Attente Validation</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -144,23 +144,23 @@ def _display_metrics(role, stats):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #fd7e14; margin: 0;">{stats.get('en_attente_validation', 0)}</h3>
-                <p style="margin: 0; color: #888;">En Attente Validation</p>
+                <p style="margin: 0; color: #333;">En Attente Validation</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #888;">Validées</p>
+                <p style="margin: 0; color: #333;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card">
+            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
                 <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
-                <p style="margin: 0; color: #888;">Montant Validé</p>
+                <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
 
