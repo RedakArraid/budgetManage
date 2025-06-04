@@ -132,6 +132,23 @@ class UserModel:
             return None
     
     @staticmethod
+    def get_all_users_list() -> List[Dict[str, Any]]:
+        """Get all users as a list of dictionaries (for budget management)"""
+        try:
+            users = db.execute_query('''
+                SELECT u.id, u.email, u.nom, u.prenom, u.role, u.region, 
+                       u.is_active, u.created_at, d.nom as directeur_nom, d.prenom as directeur_prenom
+                FROM users u
+                LEFT JOIN users d ON u.directeur_id = d.id
+                ORDER BY u.created_at DESC
+            ''', fetch='all')
+            
+            return [dict(user) for user in users] if users else []
+        except Exception as e:
+            print(f"Erreur récupération utilisateurs (liste): {e}")
+            return []
+    
+    @staticmethod
     def get_all_users() -> pd.DataFrame:
         """Get all users for admin panel"""
         try:

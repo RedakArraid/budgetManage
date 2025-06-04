@@ -72,6 +72,7 @@ def nouvelle_demande_page():
     typologie_options = get_valid_dropdown_options('typologie_client')
     region_options = get_valid_dropdown_options('region')
     groupe_options = get_valid_dropdown_options('groupe_groupement')
+    annee_fiscale_options = get_valid_dropdown_options('annee_fiscale')
     
     # Vérifier si les options sont disponibles
     if not budget_options and not categorie_options:
@@ -84,7 +85,7 @@ def nouvelle_demande_page():
     
     # Formulaire complet
     _display_full_form(type_demande, user_info, budget_options, categorie_options, 
-                       typologie_options, region_options, groupe_options)
+    typologie_options, region_options, groupe_options, annee_fiscale_options)
 
 def _clear_creation_state():
     """Nettoie complètement l'état de création"""
@@ -131,9 +132,12 @@ def _display_simplified_form(type_demande, user_info):
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="simple_urgence")
             
             current_year = date.today().year
-            fiscal_year = st.number_input("🗓️ Année Fiscale*", min_value=current_year-5, 
-                                        max_value=current_year+5, value=current_year, 
-                                        step=1, format='%d', key="simple_fiscal")
+            # Année fiscale au format BYXX même en mode simplifié
+            default_byxx = f"BY{(current_year + 1) % 100:02d}"
+            fiscal_year = st.text_input("🗓️ Année Fiscale*", 
+                                      value=default_byxx,
+                                      help="Format BYXX (ex: BY25 pour Mai 2024 - Avril 2025)",
+                                      key="simple_fiscal")
         
         commentaires = st.text_area("💭 Commentaires", height=100, key="simple_comments")
         
@@ -189,7 +193,7 @@ def _display_simplified_form(type_demande, user_info):
                     st.error(f"❌ Erreur: {e}")
 
 def _display_full_form(type_demande, user_info, budget_options, categorie_options, 
-                       typologie_options, region_options, groupe_options):
+                       typologie_options, region_options, groupe_options, annee_fiscale_options):
     """Affiche le formulaire complet"""
     
     with st.form("form_complet", clear_on_submit=False):
@@ -241,23 +245,35 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
             montant = st.number_input("💰 Montant (€)*", min_value=0.0, step=50.0, key="full_montant")
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="full_urgence")
             
-            current_year = date.today().year
-            fiscal_year = st.number_input("🗓️ Année Fiscale*", min_value=current_year-10, 
-                                        max_value=current_year+10, value=current_year, 
-                                        step=1, format='%d', key="full_fiscal")
+            # Generate list of fiscal years (BY format)
+            current_calendar_year = date.today().year
+            fiscal_year_options_by = []
+            # Generate BY options for roughly 5 years before and 5 years after the current calendar year
+            for year in range(current_calendar_year - 5, current_calendar_year + 6):
+                fiscal_year_options_by.append(f"BY{str(year)[2:]}")
+            # You might want to pre-select the current fiscal year based on the current date
+            # For simplicity now, let's just set a default or leave it to the first option
+
+            selected_by = st.selectbox("🗓️ Année Fiscale*", 
+                                       options=fiscal_year_options_by,
+                                       index=fiscal_year_options_by.index(f"BY{str(current_calendar_year)[2:]}") if f"BY{str(current_calendar_year)[2:]}" in fiscal_year_options_by else 0,
+                                       key="full_by")
 
         # 3. Participants
         st.markdown("### 👥 Participants")
-        try:
-            from views.components.participants_advanced import display_participants_advanced
-            demandeur_participe, selected_participants, participants_libres = display_participants_advanced(
-                user_role=user_info['role'], user_id=AuthController.get_current_user_id()
-            )
-        except:
-            # Fallback simple si le composant avancé échoue
-            demandeur_participe = st.checkbox("Je participe à cet événement", value=True, key="full_participe")
-            selected_participants = []
-            participants_libres = st.text_area("Autres participants (optionnel)", key="full_participants_libres", label_visibility="visible")
+        
+        # Version simplifiée des participants (sans formulaire imbriqué)
+        demandeur_participe = st.checkbox("Je participe à cet événement", value=True, key="full_participe")
+        
+        # Participants libres (texte simple)
+        participants_libres = st.text_area(
+            "Autres participants (optionnel)", 
+            key="full_participants_libres", 
+            help="Listez les autres participants à cet événement",
+            placeholder="Ex: Jean Dupont, Marie Martin, ..."
+        )
+        
+        selected_participants = []  # Pour l'instant, pas de sélection avancée
 
         # 4. Informations complémentaires
         st.markdown("### 📝 Informations Complémentaires")
@@ -338,7 +354,11 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres or "",
                 selected_participants=selected_participants,
-                fiscal_year=fiscal_year
+                # Passing the selected BY string from the selectbox
+                by=selected_by,
+                # The controller will need to derive fy from the 'by' string if needed for the DB.
+                fy=None, # Explicitly pass None for fy as it's not entered here
+                # fiscal_year=fiscal_year # Remove this line as it's no longer used
             )
         
         if success:

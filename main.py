@@ -160,6 +160,7 @@ def _get_navigation_items(role):
         nav_items.insert(1, ("➕", "Nouvelle demande", "admin_create_demande"))
         nav_items.insert(2, ("👥", "Utilisateurs", "gestion_utilisateurs"))
         nav_items.insert(3, ("🏦️", "Listes Déroulantes", "admin_dropdown_options"))
+        nav_items.insert(4, ("💰", "Gestion Budgets", "gestion_budgets"))
 
     if role in ['tc', 'dr', 'marketing']:
         # Les créateurs de demandes (TC, DR, Marketing) peuvent créer de nouvelles demandes.
@@ -256,6 +257,9 @@ def route_pages():
     elif page == "account_settings":
         from views.account_settings_view import account_settings_page
         account_settings_page()
+    elif page == "gestion_budgets":
+        from views.gestion_budgets_view import gestion_budgets_view
+        gestion_budgets_view()
     else:
         # Si la page demandée n'est pas reconnue, affiche le tableau de bord par défaut.
         print(f"[DEBUG] Unrecognized page: {page}. Defaulting to dashboard.")

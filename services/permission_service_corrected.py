@@ -74,7 +74,7 @@ class PermissionService:
     ROLE_PAGES = {
         'admin': [
             'dashboard', 'admin_create_demande', 'demandes', 'gestion_utilisateurs',
-            'admin_dropdown_options', 'validations', 'analytics', 'notifications', 'account_settings'
+            'admin_dropdown_options', 'gestion_budgets', 'validations', 'analytics', 'notifications', 'account_settings'
         ],
         'tc': [
             'dashboard', 'nouvelle_demande', 'demandes', 'analytics', 'notifications', 'account_settings'

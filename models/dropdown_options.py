@@ -6,6 +6,89 @@ import pandas as pd
 from models.database import db
 from utils.dropdown_value_normalizer import normalize_dropdown_value, validate_normalized_value
 
+def _get_demandes_usage_count(category: str, value: str) -> int:
+    """
+    Obtient le nombre d'utilisations d'une valeur dans les demandes
+    Gère le mapping des catégories vers les bonnes colonnes
+    """
+    try:
+        # Mapping des catégories vers les colonnes de la table demandes
+        column_mapping = {
+            'budget': 'budget',
+            'categorie': 'categorie',
+            'typologie_client': 'typologie_client',
+            'groupe_groupement': 'groupe_groupement',
+            'region': 'region',
+            'annee_fiscale': None  # Cas spécial - pas de colonne directe
+        }
+        
+        column_name = column_mapping.get(category)
+        
+        if column_name is None:
+            # Pour annee_fiscale, on ne peut pas compter directement
+            if category == 'annee_fiscale':
+                return 0  # Pas d'utilisation directe dans demandes
+            else:
+                return 0  # Catégorie inconnue
+        
+        # Vérifier si la colonne existe dans la table demandes
+        columns_info = db.execute_query("PRAGMA table_info(demandes)", fetch='all')
+        existing_columns = [col['name'] for col in columns_info]
+        
+        if column_name not in existing_columns:
+            return 0  # Colonne n'existe pas
+        
+        # Compter les utilisations
+        result = db.execute_query(f'''
+            SELECT COUNT(*) FROM demandes WHERE {column_name} = ?
+        ''', (value,), fetch='one')
+        
+        return result[0] if result else 0
+        
+    except Exception as e:
+        print(f"Erreur _get_demandes_usage_count pour {category}={value}: {e}")
+        return 0
+
+def _update_demandes_value_safe(category: str, old_value: str, new_value: str) -> int:
+    """
+    Met à jour une valeur dans les demandes de manière sécurisée
+    Gère le mapping des catégories vers les bonnes colonnes
+    """
+    try:
+        # Mapping des catégories vers les colonnes de la table demandes
+        column_mapping = {
+            'budget': 'budget',
+            'categorie': 'categorie',
+            'typologie_client': 'typologie_client',
+            'groupe_groupement': 'groupe_groupement',
+            'region': 'region',
+            'annee_fiscale': None  # Cas spécial - pas de colonne directe
+        }
+        
+        column_name = column_mapping.get(category)
+        
+        if column_name is None:
+            # Pour annee_fiscale, on ne peut pas mettre à jour directement
+            return 0
+        
+        # Vérifier si la colonne existe dans la table demandes
+        columns_info = db.execute_query("PRAGMA table_info(demandes)", fetch='all')
+        existing_columns = [col['name'] for col in columns_info]
+        
+        if column_name not in existing_columns:
+            return 0  # Colonne n'existe pas
+        
+        # Mettre à jour les demandes
+        result = db.execute_query(f'''
+            UPDATE demandes SET {column_name} = ? WHERE {column_name} = ?
+        ''', (new_value, old_value))
+        
+        return result if result else 0
+        
+    except Exception as e:
+        print(f"Erreur _update_demandes_value_safe pour {category}: {old_value}->{new_value}: {e}")
+        return 0
+
 class DropdownOptionsModel:
     """Model for managing dropdown options with automatic value normalization"""
     
@@ -179,18 +262,14 @@ class DropdownOptionsModel:
             rows_affected = db.execute_query(query, tuple(values))
             
             if rows_affected > 0:
-                # Si la valeur a changé, mettre à jour les demandes existantes
+                # Si la valeur a changé, mettre à jour les demandes existantes (si possible)
                 if auto_normalize_value and label is not None and new_value != current_option['value']:
                     try:
                         category = current_option['category']
                         old_value = current_option['value']
                         
-                        # Mettre à jour les demandes qui utilisent l'ancienne valeur
-                        update_count = db.execute_query(f'''
-                            UPDATE demandes 
-                            SET {category} = ?
-                            WHERE {category} = ?
-                        ''', (new_value, old_value))
+                        # Utiliser la fonction sécurisée pour la mise à jour
+                        update_count = _update_demandes_value_safe(category, old_value, new_value)
                         
                         if update_count > 0:
                             return True, f"Option et {update_count} demande(s) mises à jour avec succès (valeur: '{new_value}')"
@@ -219,10 +298,8 @@ class DropdownOptionsModel:
             
             category, value, label = option['category'], option['value'], option['label']
             
-            # Vérifier l'utilisation dans les demandes
-            usage_count = db.execute_query(f'''
-                SELECT COUNT(*) FROM demandes WHERE {category} = ?
-            ''', (value,), fetch='one')[0]
+            # Vérifier l'utilisation dans les demandes avec mapping des colonnes
+            usage_count = _get_demandes_usage_count(category, value)
             
             if usage_count > 0 and not force_delete:
                 # Soft delete si l'option est utilisée
@@ -410,17 +487,14 @@ class DropdownOptionsModel:
                     WHERE id = ?
                 ''', (new_value, option_id))
                 
-                # Mettre à jour les demandes qui utilisent cette valeur
+                # Mettre à jour les demandes qui utilisent cette valeur (si possible)
                 try:
-                    db.execute_query(f'''
-                        UPDATE demandes 
-                        SET {category} = ?
-                        WHERE {category} = ?
-                    ''', (new_value, old_value))
+                    update_count = _update_demandes_value_safe(category, old_value, new_value)
+                    if update_count > 0:
+                        updated_count += 1
                 except:
-                    pass  # Ignorer si la colonne n'existe pas
-                
-                updated_count += 1
+                    # Ignorer si la mise à jour échoue
+                    updated_count += 1
             
             message = f"{updated_count} options normalisées"
             if conflicts:
