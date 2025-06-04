@@ -46,6 +46,7 @@ temp/
 
 # Node modules (if any)
 node_modules/
+DELETED_FILES/
 
 # Distribution / packaging
 .Python
