@@ -11,11 +11,11 @@ from config.settings import WORKFLOW_CONFIG
 
 def calculate_cy_by(date_evenement):
     """
-    Calculer cy (année civile) et by (année fiscale) à partir de la date d'événement
-    L'année fiscale commence en mai
+    Calculer cy (année civile), by (année fiscale string YY/YY), et fiscal_year (année fiscale int)
+    à partir de la date d'événement. L'année fiscale commence en mai.
     """
     if not date_evenement:
-        return None, None
+        return None, None, None
     
     # Convertir en datetime si c'est une string
     if isinstance(date_evenement, str):
@@ -25,27 +25,27 @@ def calculate_cy_by(date_evenement):
             try:
                 date_obj = datetime.strptime(date_evenement, '%d/%m/%Y').date()
             except ValueError:
-                return None, None
+                return None, None, None
     else:
         date_obj = date_evenement
     
     # cy = année civile (simple)
     cy = date_obj.year
     
-    # by = année fiscale (commence en mai)
-    if date_obj.month >= 5:  # Mai à décembre
-        # Année fiscale actuelle : ex 2024/25
-        by_start = cy
-        by_end = cy + 1
-    else:  # Janvier à avril
-        # Année fiscale précédente : ex 23/24
-        by_start = cy - 1
-        by_end = cy
+    # Fiscal year starts in May. A date in May YYYY to April YYYY+1 belongs to fiscal year starting in YYYY.
+    # If the date is before May (Jan-Apr), the fiscal year started in the previous calendar year.
+    if date_obj.month >= 5:
+        # Date is in May to December of cy
+        fiscal_year_start_year = cy
+    else:
+        # Date is in January to April of cy
+        fiscal_year_start_year = cy - 1
     
-    # Format : YY/YY (ex: 23/24, 24/25)
-    by = f"{str(by_start)[2:]}/{str(by_end)[2:]}"
+    # Format by as BYYY (e.g., BY24)
+    by_string = f"BY{str(fiscal_year_start_year)[2:]}"
     
-    return cy, by
+    # Return calendar year, BY string, and fiscal year start year (integer)
+    return cy, by_string, fiscal_year_start_year
 
 @dataclass
 class Demande:
@@ -79,7 +79,8 @@ class Demande:
     commentaire_financier: str = ""
     commentaire_dg: str = ""
     cy: Optional[int] = None  # Année civile
-    by: Optional[str] = None  # Année fiscale
+    by: Optional[str] = None  # Année fiscale (string YY/YY)
+    fy: Optional[int] = None # Année fiscale (int YYYY), la colonne se nomme fy dans la DB
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -101,8 +102,8 @@ class DemandeModel:
             from utils.spinner_utils import OperationFeedback
             
             with OperationFeedback.create_demande():
-                # Calculer cy et by à partir de la date d'événement
-                cy, by = calculate_cy_by(date_evenement)
+                # Calculer cy, by et fiscal_year à partir de la date d'événement
+                cy, by, fiscal_year_calc = calculate_cy_by(date_evenement)
                 
                 # Si DR sélectionné, utiliser son ID comme user_id pour simuler qu'il a créé la demande
                 # Sinon utiliser l'admin comme créateur
@@ -113,12 +114,12 @@ class DemandeModel:
                     INSERT INTO demandes (user_id, type_demande, nom_manifestation, client, date_evenement, 
                                         lieu, montant, participants, commentaires, urgence, budget, categorie, 
                                         typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fy)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (creator_id, type_demande, nom_manifestation, client, date_evenement, 
                       lieu, montant, participants, commentaires, urgence, budget, categorie, 
                       typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                      mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by), 
+                      mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fiscal_year_calc), 
                       fetch='lastrowid')
                 
                 # Si auto-validation demandée, valider directement avec l'admin comme valideur
@@ -168,35 +169,62 @@ class DemandeModel:
     
     @staticmethod
     def create_demande(user_id: int, type_demande: str, nom_manifestation: str, 
-                      client: str, date_evenement: str, lieu: str, montant: float, 
-                      participants: str = "", commentaires: str = "", urgence: str = "normale",
-                      budget: str = "", categorie: str = "", typologie_client: str = "",
-                      groupe_groupement: str = "", region: str = "", agence: str = "",
-                      client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
-                      demandeur_participe: bool = True, participants_libres: str = "") -> tuple[bool, Optional[int]]:
+                       client: str, date_evenement: str, lieu: str, montant: float, 
+                       participants: str = "", commentaires: str = "", urgence: str = "normale",
+                       budget: str = "", categorie: str = "", typologie_client: str = "",
+                       groupe_groupement: str = "", region: str = "", agence: str = "",
+                       client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
+                       demandeur_participe: bool = True, participants_libres: str = "",
+                       fy: Optional[int] = None, by: Optional[str] = None,
+                       cy: Optional[int] = None) -> tuple[bool, Optional[int]]:
         """Create a new demande with participant support (normal workflow)"""
         try:
             from utils.spinner_utils import OperationFeedback
             
             with OperationFeedback.create_demande():
-                # Calculer cy et by à partir de la date d'événement
-                cy, by = calculate_cy_by(date_evenement)
-                
-                demande_id = db.execute_query('''
-                    INSERT INTO demandes (user_id, type_demande, nom_manifestation, client, date_evenement, 
-                                        lieu, montant, participants, commentaires, urgence, budget, categorie, 
-                                        typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (user_id, type_demande, nom_manifestation, client, date_evenement, 
-                      lieu, montant, participants, commentaires, urgence, budget, categorie, 
-                      typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                      mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by), 
-                      fetch='lastrowid')
-            
-            return True, demande_id
+                # Calculate cy (calendar year) from date_evenement
+                try:
+                    date_obj = datetime.strptime(date_evenement, '%Y-%m-%d').date()
+                    calendar_year = date_obj.year
+                except Exception:
+                    calendar_year = None # Set cy to None if date parsing fails
+
+                # Calculate 'by' string (BYNN) from the fiscal_year integer provided by the user
+                # Use the fiscal_year value passed as 'fy'
+                by_string = f"BY{str(fy)[2:]}" if fy is not None and fy >= 1000 else None # Generate BYNN format from fy
+
+                # Create the demande in the database
+                # Note: The DemandeModel.create_demande method also needs to accept fiscal_year, by, and cy
+                success, demande_id = DemandeModel.create_demande(
+                    user_id=user_id,
+                    type_demande=type_demande,
+                    nom_manifestation=nom_manifestation,
+                    client=client,
+                    date_evenement=date_evenement,
+                    lieu=lieu,
+                    montant=montant,
+                    participants=participants,
+                    commentaires=commentaires,
+                    urgence=urgence,
+                    budget=budget,
+                    categorie=categorie,
+                    typologie_client=typologie_client,
+                    groupe_groupement=groupe_groupement,
+                    region=region,
+                    agence=agence,
+                    client_enseigne=client_enseigne,
+                    mail_contact=mail_contact,
+                    nom_contact=nom_contact,
+                    demandeur_participe=demandeur_participe,
+                    participants_libres=participants_libres,
+                    cy=calendar_year, # Use calculated calendar year
+                    by=by_string, # Use generated by string
+                    fy=fy # Use user-provided fiscal year, insert into fy column
+                )
+
+            return success, demande_id # Moved return inside with block
         except Exception as e:
-            print(f"Erreur création demande: {e}")
+            print(f"Erreur création demande (modèle): {e}")
             return False, None
     
     @staticmethod
@@ -276,7 +304,7 @@ class DemandeModel:
     
     @staticmethod
     def get_demandes_for_user(user_id: int, role: str, search_query: str = "", 
-                             status_filter: str = "tous") -> pd.DataFrame:
+                             status_filter: str = "tous", fiscal_year: Optional[int] = None) -> pd.DataFrame:
         """Get demandes based on user role and filters, including demandes where user is participant"""
         try:
             with db.get_connection() as conn:
@@ -346,8 +374,14 @@ class DemandeModel:
                 
                 # Add filters
                 where_conditions = []
+
+                # Add fiscal_year filter
+                if fiscal_year is not None:
+                    where_conditions.append("fy = ?")
+                    params.append(fiscal_year)
+
                 if search_query:
-                    where_conditions.append("(d.nom_manifestation LIKE ? OR d.client LIKE ? OR d.lieu LIKE ?)")
+                    where_conditions.append("(nom_manifestation LIKE ? OR client LIKE ? OR lieu LIKE ?)")
                     search_term = f"%{search_query}%"
                     params.extend([search_term, search_term, search_term])
                 
@@ -356,44 +390,27 @@ class DemandeModel:
                     if isinstance(status_filter, list):
                         # Handle list of statuses
                         placeholders = ', '.join(['?' for _ in status_filter])
-                        # Correction: Use 'status' directly instead of 'd.status' after UNION
                         status_condition = f"status IN ({placeholders})" 
                         params.extend(status_filter)
                     else:
                         # Handle single status
-                        # Correction: Use 'status' directly instead of 'd.status' after UNION
                         status_condition = "status = ?"
                         params.append(status_filter)
                     
                     # Add status condition to where_conditions
                     where_conditions.append(status_condition)
 
-                # Pour les requêtes UNION, nous devons encapsuler dans un SELECT externe pour les filtres
-                # La clause WHERE pour les filtres doit être appliquée à l'alias combined_results
-                if "UNION" in base_query and (search_query or status_filter != "tous"):
-                    # Pour les requêtes UNION, l'alias d. n'est pas disponible dans la WHERE externe
-                    # Assurons-nous que les conditions ne référencent pas 'd.' inutilement ici
-                    # La condition sur 'status' est déjà corrigée ci-dessus.
-                    # Pour la recherche textuelle, l'alias d. est utilisé, ce qui est correct DANS la subquery.
-                    # La clause WHERE externe doit donc faire référence aux colonnes SANS l'alias d.
-                    # Cela nécessite de re-formater les where_conditions si elles viennent de la recherche
-                    # Simplifions : Appliquons TOUTES les conditions sur combined_results
-                    final_where_conditions = []
-                    for cond in where_conditions:
-                        # Remplacer d. par l'alias combiné si nécessaire pour les filtres externes
-                        # Note: Pour ce cas d'usage simple (status et recherche), on peut juste utiliser le nom de colonne direct.
-                        # Si des conditions complexes avec alias étaient nécessaires, il faudrait une logique plus sophistiquée.
-                        final_where_conditions.append(cond.replace('d.nom_manifestation', 'nom_manifestation').replace('d.client', 'client').replace('d.lieu', 'lieu').replace('d.status', 'status'))
-
-                    base_query = f"SELECT * FROM ({base_query}) AS combined_results"
-                    if final_where_conditions:
-                        base_query += " WHERE " + " AND ".join(final_where_conditions)
-                elif where_conditions:
-                    # Cas sans UNION, les conditions s'appliquent directement avec l'alias d.
-                    if "WHERE" in base_query:
-                        base_query += " AND " + " AND ".join(where_conditions)
+                # Apply filters to the base query or outer select for UNION queries
+                if where_conditions:
+                     # For UNION queries, apply filters to the outer SELECT on combined_results
+                    if "UNION" in base_query:
+                         base_query = f"SELECT * FROM ({base_query}) AS combined_results WHERE " + " AND ".join(where_conditions)
                     else:
-                        base_query += " WHERE " + " AND ".join(where_conditions)
+                        # For non-UNION queries, apply filters directly to the main WHERE clause
+                        if "WHERE" in base_query:
+                            base_query += " AND " + " AND ".join(where_conditions)
+                        else:
+                             base_query += " WHERE " + " AND ".join(where_conditions)
                 
                 base_query += " ORDER BY updated_at DESC"
                 
@@ -444,15 +461,19 @@ class DemandeModel:
                     'status', 'valideur_dr_id', 'valideur_financier_id', 'date_validation_dr',
                     'date_validation_financier', 'commentaire_dr', 'commentaire_financier',
                     'valideur_dg_id', 'date_validation_dg', 'commentaire_dg',
-                    'demandeur_participe', 'participants_libres', 'cy', 'by'
+                    'demandeur_participe', 'participants_libres', 'cy', 'by', 'fy'
                 ]
                 
                 # Si la date d'événement change, recalculer cy et by
                 if 'date_evenement' in kwargs:
-                    cy, by = calculate_cy_by(kwargs['date_evenement'])
-                    if cy and by:
-                        kwargs['cy'] = cy
-                        kwargs['by'] = by
+                    # If date_evenement changes, update cy based on calendar year
+                    try:
+                         date_obj = datetime.strptime(kwargs['date_evenement'], '%Y-%m-%d').date()
+                         kwargs['cy'] = date_obj.year
+                    except Exception:
+                         kwargs['cy'] = None # Set cy to None if date parsing fails
+                    # Note: 'by' and 'fy' are NOT recalculated here based on date_evenement
+                    # as they are now manually input. They would only be updated if explicitly passed in kwargs.
                 
                 for key, value in kwargs.items():
                     if key in allowed_fields:
@@ -541,68 +562,73 @@ class DemandeModel:
             return False, f"Erreur: {e}"
     
     @staticmethod
-    def get_dashboard_stats(user_id: int, role: str) -> Dict[str, Any]:
-        """Get statistics for dashboard based on user role"""
+    def get_dashboard_stats(user_id: int, role: str, fiscal_year: Optional[int] = None) -> Dict[str, Any]:
+        """Récupérer les statistiques pour le tableau de bord, filtrées par année fiscale"""
         try:
-            stats = {}
+            # Base query to get counts for different statuses
+            base_query = '''
+                SELECT
+                    COUNT(CASE WHEN status = 'brouillon' THEN 1 END) AS brouillon,
+                    COUNT(CASE WHEN status IN ('en_attente_dr', 'en_attente_financier') THEN 1 END) AS en_cours,
+                    COUNT(CASE WHEN status = 'validee' THEN 1 END) AS validees,
+                    COUNT(CASE WHEN status = 'rejetee' THEN 1 END) AS rejetees,
+                    SUM(CASE WHEN status = 'validee' THEN montant ELSE 0 END) AS montant_valide,
+                    COUNT(*) AS total_demandes
+                FROM demandes d
+                JOIN users u ON d.user_id = u.id
+            '''
+            params = []
             
-            if role == 'admin':
-                # Global stats for admin
-                stats['total_demandes'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes", fetch='one')[0]
-                stats['en_attente_dr'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE status = 'en_attente_dr'", fetch='one')[0]
-                stats['en_attente_financier'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE status = 'en_attente_financier'", fetch='one')[0]
-                stats['validees'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE status = 'validee'", fetch='one')[0]
-                
-                result = db.execute_query(
-                    "SELECT SUM(montant) FROM demandes WHERE status = 'validee'", fetch='one')[0]
-                stats['montant_valide'] = result if result else 0
-                
-            elif role == 'tc':
-                # Stats for TC
-                stats['mes_demandes'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE user_id = ?", (user_id,), fetch='one')[0]
-                stats['validees'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE user_id = ? AND status = 'validee'", 
-                    (user_id,), fetch='one')[0]
-                
-                result = db.execute_query(
-                    "SELECT SUM(montant) FROM demandes WHERE user_id = ? AND status = 'validee'", 
-                    (user_id,), fetch='one')[0]
-                stats['montant_valide'] = result if result else 0
-                
+            # Add role-based filtering
+            role_conditions = []
+            if role == 'tc':
+                role_conditions.append("d.user_id = ?")
+                params.append(user_id)
             elif role == 'dr':
-                # Stats for DR
-                stats['total_demandes'] = db.execute_query('''
-                    SELECT COUNT(*) FROM demandes d
-                    JOIN users u ON d.user_id = u.id
-                    WHERE d.user_id = ? OR u.directeur_id = ?
-                ''', (user_id, user_id), fetch='one')[0]
-                
-                stats['en_attente_validation'] = db.execute_query('''
-                    SELECT COUNT(*) FROM demandes d
-                    JOIN users u ON d.user_id = u.id
-                    WHERE (d.user_id = ? OR u.directeur_id = ?) AND d.status = 'en_attente_dr'
-                ''', (user_id, user_id), fetch='one')[0]
-                
+                role_conditions.append("d.user_id = ? OR u.directeur_id = ?")
+                params.extend([user_id, user_id])
             elif role in ['dr_financier', 'dg']:
-                # Stats for financiers
-                stats['en_attente_validation'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE status = 'en_attente_financier'", fetch='one')[0]
-                stats['validees'] = db.execute_query(
-                    "SELECT COUNT(*) FROM demandes WHERE status = 'validee'", fetch='one')[0]
-                
-                result = db.execute_query(
-                    "SELECT SUM(montant) FROM demandes WHERE status = 'validee'", fetch='one')[0]
-                stats['montant_valide'] = result if result else 0
+                 # Financier/DG voit toutes les demandes sauf brouillon et rejetee par DR
+                 role_conditions.append("d.status NOT IN ('brouillon', 'rejetee')")
+            # Admin sees all (no role condition needed)
+
+            # Add fiscal_year filtering
+            if fiscal_year is not None:
+                role_conditions.append("d.fy = ?")
+                params.append(fiscal_year)
+
+            # Combine conditions
+            if role_conditions:
+                 base_query += " WHERE " + " AND '.join(role_conditions)"
+
+            # Execute query
+            stats = db.execute_query(base_query, tuple(params), fetch='one')
             
-            return stats
+            if stats:
+                # Convert Row to dictionary
+                return dict(stats)
+            else:
+                # Return zero stats if no data
+                return {
+                    'brouillon': 0,
+                    'en_cours': 0,
+                    'validees': 0,
+                    'rejetees': 0,
+                    'montant_valide': 0,
+                    'total_demandes': 0
+                }
+
         except Exception as e:
-            print(f"Erreur stats: {e}")
-            return {}
+            print(f"Erreur récupération stats tableau de bord: {e}")
+            # Return zero stats on error
+            return {
+                'brouillon': 0,
+                'en_cours': 0,
+                'validees': 0,
+                'rejetees': 0,
+                'montant_valide': 0,
+                'total_demandes': 0
+            }
     
     @staticmethod
     def get_analytics_data(user_id: int, role: str) -> Dict[str, Any]:

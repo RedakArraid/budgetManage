@@ -55,16 +55,27 @@ def _get_demandes_validation(user_info):
     user_id = AuthController.get_current_user_id()
     role = user_info['role']
     
+    # Get fiscal year filter from session state
+    fiscal_year_filter = st.session_state.get('validation_fiscal_year_filter', 'Tous')
+    # Convert to int or None for the controller
+    fiscal_year_param = int(fiscal_year_filter) if fiscal_year_filter != 'Tous' else None
+    
     if role == 'dr':
         # DR voit les demandes en attente DR de son équipe
         return DemandeController.get_demandes_for_user(
             user_id,
             role,
-            status_filter='en_attente_dr'
+            status_filter='en_attente_dr',
+            fiscal_year=fiscal_year_param
         )
     elif role in ['dr_financier', 'dg']:
         # Financiers voient toutes les demandes en attente financière
-        return DemandeController.get_demandes_for_user(user_id, role, status_filter='en_attente_financier')
+        return DemandeController.get_demandes_for_user(
+            user_id, 
+            role, 
+            status_filter='en_attente_financier',
+            fiscal_year=fiscal_year_param
+        )
     
     return pd.DataFrame()
 
@@ -103,10 +114,16 @@ def _display_validation_filters():
         st.session_state.validation_montant_filter = 'tous'
     if 'validation_type_filter' not in st.session_state:
         st.session_state.validation_type_filter = 'tous'
-        
+    # Initialize fiscal year filter
+    current_year = datetime.now().year
+    # Generate a list of fiscal years (e.g., past 5 years, current year, next 5 years)
+    fiscal_years_options = ['Tous'] + list(range(current_year - 5, current_year + 6))
+    if 'validation_fiscal_year_filter' not in st.session_state:
+        st.session_state.validation_fiscal_year_filter = 'Tous'
+
     with st.expander("🔍 Filtres", expanded=False):
-        col1, col2, col3, col4 = st.columns(4)
-        
+        col1, col2, col3, col4, col5 = st.columns(5) # Added one more column for fiscal year
+
         with col1:
             search = st.text_input(
                 "Rechercher", 
@@ -116,7 +133,7 @@ def _display_validation_filters():
             )
             if search != st.session_state.validation_search_query:
                 st.session_state.validation_search_query = search
-                
+
         with col2:
             urgence_options = ['toutes', 'normale', 'urgent', 'critique']
             urgence_filter = st.selectbox(
@@ -127,7 +144,7 @@ def _display_validation_filters():
             )
             if urgence_filter != st.session_state.validation_urgence_filter:
                 st.session_state.validation_urgence_filter = urgence_filter
-                
+
         with col3:
             montant_options = {
                 'tous': 'Tous montants',
@@ -144,7 +161,7 @@ def _display_validation_filters():
             )
             if montant_filter != st.session_state.validation_montant_filter:
                 st.session_state.validation_montant_filter = montant_filter
-                
+
         with col4:
             type_options = {
                 'tous': 'Tous types',
@@ -160,7 +177,19 @@ def _display_validation_filters():
             )
             if type_filter != st.session_state.validation_type_filter:
                 st.session_state.validation_type_filter = type_filter
-    
+
+        with col5:
+             # Fiscal Year Filter
+            fiscal_year_filter = st.selectbox(
+                "Année Fiscale",
+                options=fiscal_years_options,
+                index=fiscal_years_options.index(st.session_state.validation_fiscal_year_filter),
+                key='validation_fiscal_year_select'
+            )
+             # Mettre à jour la session state
+            if fiscal_year_filter != st.session_state.validation_fiscal_year_filter:
+                st.session_state.validation_fiscal_year_filter = fiscal_year_filter
+
     # Boutons d'action pour les filtres
     col1, col2 = st.columns(2)
     with col1:
@@ -172,6 +201,7 @@ def _display_validation_filters():
             st.session_state.validation_urgence_filter = 'toutes'
             st.session_state.validation_montant_filter = 'tous'
             st.session_state.validation_type_filter = 'tous'
+            st.session_state.validation_fiscal_year_filter = 'Tous'
             st.rerun()
 
 def _display_pending_validations(demandes, user_info):
@@ -313,6 +343,7 @@ def _display_validation_card(row, user_info):
             st.markdown(f"- **Email Demandeur:** {row.get('email','N/A')}") # Utiliser 'email' du JOIN
             st.markdown(f"- **Rôle Demandeur:** {row.get('user_role','N/A')}") # Utiliser 'user_role' du JOIN
             st.markdown(f"- **Statut:** {get_status_info(row.get('status','N/A'))['label']}")
+            st.markdown(f"- **Année Fiscale:** {row.get('by', 'N/A')}") # Display BYNN format
             st.markdown(f"- **Urgence:** {row.get('urgence','normale').title()}")
             st.markdown(f"- **Créée le:** {format_date(row.get('created_at'))}")
             st.markdown(f"- **Modifiée le:** {format_date(row.get('updated_at'))}")

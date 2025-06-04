@@ -46,12 +46,17 @@ def demandes_page():
         status_filter = st.session_state.get('demandes_status_filter', 'tous')
         type_filter = st.session_state.get('demandes_type_filter', 'tous')
         montant_filter = st.session_state.get('demandes_montant_filter', 'tous')
+        fiscal_year_filter = st.session_state.get('demandes_fiscal_year_filter', 'Tous')
         
+        # Convert fiscal_year_filter to int or None
+        fiscal_year_param = int(fiscal_year_filter) if fiscal_year_filter != 'Tous' else None
+
         demandes = DemandeController.get_demandes_for_user(
             user_id=AuthController.get_current_user_id(),
             role=user_info['role'],
             search_query=search_query,
-            status_filter=status_filter if status_filter != 'tous' else ''
+            status_filter=status_filter if status_filter != 'tous' else '',
+            fiscal_year=fiscal_year_param
         )
         
         if not demandes.empty:
@@ -122,10 +127,16 @@ def _display_filters():
         st.session_state.demandes_type_filter = 'tous'
     if 'demandes_montant_filter' not in st.session_state:
         st.session_state.demandes_montant_filter = 'tous'
-        
+    # Initialize fiscal year filter
+    current_year = datetime.now().year
+    # Generate a list of fiscal years (e.g., past 5 years, current year, next 5 years)
+    fiscal_years_options = ['Tous'] + list(range(current_year - 5, current_year + 6))
+    if 'demandes_fiscal_year_filter' not in st.session_state:
+        st.session_state.demandes_fiscal_year_filter = 'Tous'
+
     with st.expander("🔍 Filtres et Recherche", expanded=True):
-        col1, col2, col3, col4 = st.columns(4)
-        
+        col1, col2, col3, col4, col5 = st.columns(5)
+
         with col1:
             search_query = st.text_input(
                 "Rechercher", 
@@ -137,7 +148,7 @@ def _display_filters():
             # Mettre à jour la session state
             if search_query != st.session_state.demandes_search_query:
                 st.session_state.demandes_search_query = search_query
-        
+
         with col2:
             status_options = {
                 'tous': 'Tous les statuts',
@@ -157,7 +168,7 @@ def _display_filters():
             # Mettre à jour la session state
             if status_filter != st.session_state.demandes_status_filter:
                 st.session_state.demandes_status_filter = status_filter
-        
+
         with col3:
             type_options = {
                 'tous': 'Tous types',
@@ -174,7 +185,7 @@ def _display_filters():
             # Mettre à jour la session state
             if type_filter != st.session_state.demandes_type_filter:
                 st.session_state.demandes_type_filter = type_filter
-        
+
         with col4:
             montant_options = {
                 'tous': 'Tous montants',
@@ -193,7 +204,19 @@ def _display_filters():
             # Mettre à jour la session state
             if montant_filter != st.session_state.demandes_montant_filter:
                 st.session_state.demandes_montant_filter = montant_filter
-    
+
+        with col5:
+             # Fiscal Year Filter
+            fiscal_year_filter = st.selectbox(
+                "Année Fiscale",
+                options=fiscal_years_options,
+                index=fiscal_years_options.index(st.session_state.demandes_fiscal_year_filter),
+                key='demandes_fiscal_year_select'
+            )
+             # Mettre à jour la session state
+            if fiscal_year_filter != st.session_state.demandes_fiscal_year_filter:
+                st.session_state.demandes_fiscal_year_filter = fiscal_year_filter
+
     # Actions rapides
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
@@ -206,6 +229,7 @@ def _display_filters():
             st.session_state.demandes_status_filter = 'tous'
             st.session_state.demandes_type_filter = 'tous'
             st.session_state.demandes_montant_filter = 'tous'
+            st.session_state.demandes_fiscal_year_filter = 'Tous'
             st.rerun()
     
     with col3:
@@ -304,6 +328,7 @@ def _display_cards_view(demandes, user_info):
                 st.markdown(f"- **Email Demandeur:** {row.get('email','N/A')}")
                 st.markdown(f"- **Rôle Demandeur:** {row.get('user_role','N/A')}")
                 st.markdown(f"- **Statut:** {status_info['label']}")
+                st.markdown(f"- **Année Fiscale:** {row.get('by', 'N/A')}")
                 st.markdown(f"- **Urgence:** {row.get('urgence','normale').title()}")
                 st.markdown(f"- **Créée le:** {format_date(row.get('created_at'))}")
                 st.markdown(f"- **Modifiée le:** {format_date(row.get('updated_at'))}")

@@ -16,7 +16,7 @@ class UserController:
     
     @staticmethod
     def create_user(email: str, nom: str, prenom: str, role: str, region: str = None, 
-                   directeur_id: int = None, budget_alloue: float = 0.0) -> Tuple[bool, str]:
+                   directeur_id: int = None, temp_password: str = None) -> Tuple[bool, str]:
         """Create a new user"""
         try:
             # Validation des champs
@@ -49,7 +49,8 @@ class UserController:
                 region = dr_info['region']  # Région automatique du DR
             
             # Générer un mot de passe temporaire
-            temp_password = "TempPass123!"  # À changer à la première connexion
+            if temp_password is None:
+                temp_password = "TempPass123!"  # À changer à la première connexion
             
             # Créer l'utilisateur
             success, user_id = UserModel.create_user(
@@ -59,7 +60,6 @@ class UserController:
                 role=role,
                 region=region,
                 directeur_id=directeur_id,
-                budget_alloue=budget_alloue,
                 temp_password=temp_password
             )
             
@@ -324,13 +324,12 @@ class UserController:
             
             # Sélectionner et renommer les colonnes pour l'export
             export_df = users_df[['id', 'email', 'nom', 'prenom', 'role', 'region', 
-                                'budget_alloue', 'is_active', 'created_at']].copy()
+                                'is_active', 'created_at']].copy()
             
             export_df.columns = ['ID', 'Email', 'Nom', 'Prénom', 'Rôle', 'Région', 
-                               'Budget Alloué', 'Actif', 'Date Création']
+                               'Actif', 'Date Création']
             
             # Formater les données
-            export_df['Budget Alloué'] = export_df['Budget Alloué'].apply(lambda x: f"{x:,.2f}€")
             export_df['Actif'] = export_df['Actif'].apply(lambda x: 'Oui' if x else 'Non')
             export_df['Date Création'] = pd.to_datetime(export_df['Date Création']).dt.strftime('%d/%m/%Y')
             
@@ -343,7 +342,7 @@ class UserController:
         except Exception as e:
             st.error(f"Erreur lors de l'export: {e}")
             return pd.DataFrame()
-    
+
     @staticmethod
     def delete_user_complete(user_id: int) -> Tuple[bool, str]:
         """Permanently delete a user and associated data"""
@@ -365,3 +364,103 @@ class UserController:
 
         except Exception as e:
             return False, f"Erreur lors de la suppression définitive de l'utilisateur: {str(e)}"
+
+    @staticmethod
+    def get_user_budgets(user_id: int) -> List[Dict[str, Any]]:
+        """Get all fiscal year budgets for a user via the model"""
+        return UserModel.get_user_budgets(user_id)
+    
+    @staticmethod
+    def get_user_budget_for_year(user_id: int, fiscal_year: int) -> Optional[Dict[str, Any]]:
+        """Get a specific fiscal year budget for a user via the model"""
+        return UserModel.get_user_budget_for_year(user_id, fiscal_year)
+    
+    @staticmethod
+    def add_user_budget(user_id: int, fiscal_year: int, allocated_budget: float) -> Tuple[bool, str]:
+        """Add a new fiscal year budget for a user via the model"""
+        if allocated_budget < 0:
+            return False, "Le budget alloué doit être positif."
+        
+        # Check if budget for this fiscal year already exists
+        existing_budget = UserModel.get_user_budget_for_year(user_id, fiscal_year)
+        if existing_budget:
+            return False, f"Un budget existe déjà pour l'année fiscale {fiscal_year}. Utilisez la modification pour le mettre à jour."
+
+        success = UserModel.add_user_budget(user_id, fiscal_year, allocated_budget)
+        if success:
+            current_user_id = AuthController.get_current_user_id()
+            ActivityLogModel.log_activity(
+                current_user_id, None, 'add_user_budget',
+                f"Ajout budget {allocated_budget}€ pour user {user_id} FY {fiscal_year}"
+            )
+            return True, "Budget ajouté avec succès."
+        else:
+            return False, "Erreur lors de l'ajout du budget."
+    
+    @staticmethod
+    def update_user_budget(budget_id: int, allocated_budget: float) -> Tuple[bool, str]:
+        """Update an existing fiscal year budget amount via the model"""
+        if allocated_budget < 0:
+            return False, "Le budget alloué doit être positif."
+        
+        success = UserModel.update_user_budget(budget_id, allocated_budget)
+        if success:
+            # Log activity - might need to get user_id and fiscal_year from budget_id
+            try:
+                budget_info = UserModel.get_user_budget_by_id(budget_id) # Need a new method in UserModel
+                if budget_info:
+                    current_user_id = AuthController.get_current_user_id()
+                    ActivityLogModel.log_activity(
+                        current_user_id, None, 'update_user_budget',
+                        f"Mise à jour budget {allocated_budget}€ pour user {budget_info['user_id']} FY {budget_info['fiscal_year']}"
+                    )
+            except Exception as e:
+                print(f"[WARNING] Could not log budget update activity: {e}")
+               
+            return True, "Budget mis à jour avec succès."
+        else:
+            return False, "Erreur lors de la mise à jour du budget."
+    
+    @staticmethod
+    def delete_user_budget(budget_id: int) -> Tuple[bool, str]:
+        """Delete a fiscal year budget entry via the model"""
+        # Log activity before deleting the entry
+        try:
+            # Get budget info before deleting for logging
+            budget_info = UserModel.get_user_budget_by_id(budget_id)
+            
+            if budget_info:
+                current_user_id = AuthController.get_current_user_id()
+                ActivityLogModel.log_activity(
+                    current_user_id, None, 'delete_user_budget',
+                    f"Suppression budget pour user {budget_info['user_id']} FY {budget_info['fiscal_year']}"
+                )
+        except Exception as e:
+            print(f"[WARNING] Could not log budget delete activity: {e}")
+           
+        # Perform the actual deletion via the model
+        success = UserModel.delete_user_budget(budget_id)
+        
+        if success:
+            # If deletion was successful, attempt to log again if the initial attempt failed
+            # (The initial logging attempt before deletion might fail if the budget is already gone from a previous failed UI state)
+            try:
+                # We don't need to re-fetch budget info after successful deletion, as it's gone.
+                # Log a generic success message for the budget ID.
+                current_user_id = AuthController.get_current_user_id()
+                ActivityLogModel.log_activity(
+                     current_user_id, None, 'delete_user_budget',
+                     f"Suppression budget ID {budget_id}"
+                )
+            except Exception as log_e:
+                 print(f"[WARNING] Could not log budget delete activity after successful deletion: {log_e}")
+            
+            return True, "Budget supprimé avec succès."
+        else:
+            # If UserModel.delete_user_budget returned False, something went wrong at the database level
+            return False, "Erreur lors de la suppression du budget dans la base de données."
+
+    @staticmethod
+    def _display_user_statistics():
+        # Implementation of _display_user_statistics method
+        pass

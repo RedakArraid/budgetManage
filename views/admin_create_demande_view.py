@@ -189,6 +189,16 @@ def admin_create_demande_page():
                     'critique': '🔴 Critique'
                 }[x]
             )
+            # Added Fiscal Year input
+            current_year = date.today().year
+            fiscal_year = st.number_input(
+                "🗓️ Année Fiscale*",
+                min_value=current_year - 5, # Allow selecting a few past years
+                max_value=current_year + 5, # Allow selecting a few future years
+                value=current_year, # Default to current year
+                step=1,
+                format='%d'
+            )
 
         # 4. Gestion des participants
         st.markdown("### 👥 Participants")
@@ -581,7 +591,8 @@ def admin_create_demande_page():
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres,
                 auto_validate=create_and_process and auto_validate,
-                selected_participants=selected_participants
+                selected_participants=selected_participants,
+                fiscal_year=fiscal_year
             )
         
         if success:

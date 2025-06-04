@@ -129,6 +129,20 @@ class Database:
                     )
                 ''')
                 
+                # TABLE USER_BUDGETS - NOUVELLE TABLE
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS user_budgets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        fiscal_year INTEGER NOT NULL,
+                        allocated_budget REAL NOT NULL DEFAULT 0.0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                        UNIQUE(user_id, fiscal_year)
+                    )
+                ''')
+                
                 # TABLE DEMANDES
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS demandes (
@@ -174,6 +188,9 @@ class Database:
                         FOREIGN KEY (valideur_dg_id) REFERENCES users (id) ON DELETE SET NULL
                     )
                 ''')
+                
+                # Add fiscal_year column if it doesn't exist
+                self.add_column_if_not_exists('demandes', 'fiscal_year', "INTEGER NOT NULL DEFAULT (CAST(strftime('%Y', CURRENT_TIMESTAMP) AS INTEGER))")
                 
                 # TABLE DEMANDE_VALIDATIONS - MANQUANTE CRÉÉE
                 cursor.execute('''
@@ -287,6 +304,19 @@ class Database:
             self.add_column_if_not_exists('activity_logs', 'user_agent', 'TEXT')
             self.add_column_if_not_exists('dropdown_options', 'created_by', 'INTEGER')
             logger.info("✅ Migrations terminées")
+            
+            # Migration to remove old budget_alloue column from users table
+            if self.column_exists('users', 'budget_alloue'):
+                # SQLite does not support dropping columns directly in older versions
+                # The standard approach is to: rename table, create new table, copy data, drop old table
+                # However, for simplicity and assuming a recent enough SQLite or accepting potential data loss for this single column,
+                # we can attempt to drop the column. If it fails, a manual step might be needed.
+                try:
+                    self.execute_query("ALTER TABLE users DROP COLUMN budget_alloue")
+                    logger.info("🗑️ Colonne budget_alloue supprimée de la table users")
+                except Exception as e:
+                    logger.warning(f"⚠️ Impossible de supprimer la colonne budget_alloue de la table users: {e}. Une migration manuelle peut être nécessaire.")
+
         except Exception as e:
             logger.error(f"❌ Erreur migration: {e}")
             raise

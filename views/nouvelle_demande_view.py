@@ -82,6 +82,17 @@ def nouvelle_demande_page():
                         'critique': '🔴 Critique'
                     }[x]
                 )
+                # Added Fiscal Year input to simple form
+                current_year = date.today().year
+                fiscal_year_simple = st.number_input(
+                    "🗓️ Année Fiscale*",
+                    min_value=current_year - 5, # Allow selecting a few past years
+                    max_value=current_year + 5, # Allow selecting a few future years
+                    value=current_year, # Default to current year
+                    step=1,
+                    format='%d',
+                    key='fiscal_year_simple' # Add a unique key for the simple form
+                )
             
             commentaires = st.text_area(
                 "💭 Commentaires", 
@@ -132,7 +143,8 @@ def nouvelle_demande_page():
                             nom_contact="",
                             demandeur_participe=True,
                             participants_libres="",
-                            selected_participants=[]
+                            selected_participants=[],
+                            fiscal_year=fiscal_year_simple # Pass the selected fiscal year from simple form
                         )
                         
                         if success:
@@ -238,6 +250,17 @@ def nouvelle_demande_page():
                     'urgent': '🟡 Urgent',
                     'critique': '🔴 Critique'
                 }[x]
+            )
+            # 🗓️ Année Fiscale Input (user specifies the year YYYY for BYYY)
+            current_calendar_year = date.today().year
+            fiscal_year_input = st.number_input(
+                "🗓️ Année Fiscale*",
+                min_value=current_calendar_year - 10, # Allow selecting past years
+                max_value=current_calendar_year + 10, # Allow selecting future years
+                value=current_calendar_year, # Default to current calendar year
+                step=1,
+                format='%d',
+                help="Entrez l'année YYYY qui correspond à l'année fiscale BYYY (ex: 2025 pour BY25)."
             )
 
         # 3. Gestion des participants selon le rôle
@@ -386,7 +409,8 @@ def nouvelle_demande_page():
                 nom_contact=nom_contact,
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres,
-                selected_participants=selected_participants
+                selected_participants=selected_participants,
+                fiscal_year=fiscal_year_input # Pass the user-provided fiscal year
             )
         
         if success:

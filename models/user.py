@@ -19,7 +19,6 @@ class User:
     prenom: str = ""
     role: str = ""
     region: Optional[str] = None
-    budget_alloue: float = 0.0
     directeur_id: Optional[int] = None
     is_active: bool = False
     created_at: Optional[datetime] = None
@@ -55,8 +54,8 @@ class UserModel:
             hashed_password = hash_password(password)
             
             # Include is_active and activated_at if user is active on creation
-            fields = 'email, password_hash, nom, prenom, role, region, budget_alloue, directeur_id'
-            values_tuple = (email, hashed_password, nom, prenom, role, region, budget_alloue, directeur_id)
+            fields = 'email, password_hash, nom, prenom, role, region, directeur_id'
+            values_tuple = (email, hashed_password, nom, prenom, role, region, directeur_id)
 
             if is_active:
                 fields += ', is_active, activated_at'
@@ -122,7 +121,7 @@ class UserModel:
         """Get user by ID"""
         try:
             user_data = db.execute_query('''
-                SELECT id, email, nom, prenom, role, region, budget_alloue, 
+                SELECT id, email, nom, prenom, role, region, 
                        directeur_id, is_active, created_at, activated_at
                 FROM users WHERE id = ?
             ''', (user_id,), fetch='one')
@@ -199,7 +198,7 @@ class UserModel:
             # Liste des champs autorisés (incluant tous les champs modifiables)
             allowed_fields = [
                 'nom', 'prenom', 'email', 'role', 'region', 
-                'budget_alloue', 'directeur_id', 'is_active'
+                'directeur_id', 'is_active'
             ]
             
             print(f"Debug: Champs autorisés: {allowed_fields}")
@@ -634,3 +633,138 @@ class UserModel:
         except Exception as e:
             print(f"Erreur UserModel.change_password pour user_id {user_id}: {e}")
             return False, f"Une erreur est survenue lors de la mise à jour du mot de passe: {e}"
+
+    @staticmethod
+    def is_email_unique(email: str, exclude_user_id: Optional[int] = None) -> bool:
+        """Check if an email is unique"""
+        try:
+            query = 'SELECT id FROM users WHERE email = ?'
+            params = [email]
+            
+            if exclude_user_id:
+                query += ' AND id != ?'
+                params.append(exclude_user_id)
+            
+            existing = db.execute_query(query, tuple(params), fetch='one')
+            return not existing
+        except Exception as e:
+            print(f"Erreur vérification email unique: {e}")
+            return False
+
+    @staticmethod
+    def get_user_budgets(user_id: int) -> List[Dict[str, Any]]:
+        """Get all fiscal year budgets for a user"""
+        try:
+            budgets = db.execute_query(
+                '''
+                SELECT id, fiscal_year, allocated_budget
+                FROM user_budgets
+                WHERE user_id = ?
+                ORDER BY fiscal_year DESC
+                ''',
+                (user_id,), fetch='all'
+            )
+            return [dict(budget) for budget in budgets] if budgets else []
+        except Exception as e:
+            print(f"Erreur récupération budgets utilisateur {user_id}: {e}")
+            return []
+
+    @staticmethod
+    def get_user_budget_for_year(user_id: int, fiscal_year: int) -> Optional[Dict[str, Any]]:
+        """Get the allocated budget for a specific user and fiscal year"""
+        try:
+            budget = db.execute_query(
+                '''
+                SELECT id, fiscal_year, allocated_budget
+                FROM user_budgets
+                WHERE user_id = ? AND fiscal_year = ?
+                ''',
+                (user_id, fiscal_year), fetch='one'
+            )
+            return dict(budget) if budget else None
+        except Exception as e:
+            print(f"Erreur récupération budget {user_id} année {fiscal_year}: {e}")
+            return None
+
+    @staticmethod
+    def add_user_budget(user_id: int, fiscal_year: int, allocated_budget: float) -> bool:
+        """Add a new fiscal year budget for a user"""
+        try:
+            db.execute_query(
+                '''
+                INSERT INTO user_budgets (user_id, fiscal_year, allocated_budget)
+                VALUES (?, ?, ?)
+                ''',
+                (user_id, fiscal_year, allocated_budget)
+            )
+            print(f"✅ Budget de {allocated_budget}€ ajouté pour l'utilisateur {user_id} en {fiscal_year}")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur ajout budget utilisateur {user_id} année {fiscal_year}: {e}")
+            return False
+
+    @staticmethod
+    def update_user_budget(budget_id: int, allocated_budget: float) -> bool:
+        """Update an existing fiscal year budget amount"""
+        try:
+            db.execute_query(
+                '''
+                UPDATE user_budgets
+                SET allocated_budget = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                ''',
+                (allocated_budget, budget_id)
+            )
+            print(f"✅ Budget ID {budget_id} mis à jour à {allocated_budget}€")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur mise à jour budget ID {budget_id}: {e}")
+            return False
+
+    @staticmethod
+    def delete_user_budget(budget_id: int) -> bool:
+        """Delete a fiscal year budget entry"""
+        try:
+            db.execute_query(
+                '''
+                DELETE FROM user_budgets
+                WHERE id = ?
+                ''',
+                (budget_id,)
+            )
+            print(f"✅ Budget ID {budget_id} supprimé")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur suppression budget ID {budget_id}: {e}")
+            return False
+
+    @staticmethod
+    def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+        """Get a user by their email"""
+        try:
+            user_data = db.execute_query('''
+                SELECT id, password_hash, nom, prenom, role, is_active, directeur_id, region
+                FROM users WHERE email = ?
+            ''', (email,), fetch='one')
+            
+            return dict(user_data) if user_data else None
+        except Exception as e:
+            print(f"Erreur récupération utilisateur par email: {e}")
+            return None
+
+    @staticmethod
+    def get_user_budget_by_id(budget_id: int) -> Optional[Dict[str, Any]]:
+        """Get a user budget entry by its ID"""
+        try:
+            budget_data = db.execute_query(
+                '''
+                SELECT id, user_id, fiscal_year, allocated_budget
+                FROM user_budgets
+                WHERE id = ?
+                ''',
+                (budget_id,), fetch='one'
+            )
+            return dict(budget_data) if budget_data else None
+        except Exception as e:
+            print(f"Erreur récupération budget par ID {budget_id}: {e}")
+            return None

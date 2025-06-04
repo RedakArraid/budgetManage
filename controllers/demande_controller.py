@@ -13,115 +13,119 @@ class DemandeController:
     
     @staticmethod
     def create_demande(user_id: int, type_demande: str, nom_manifestation: str, 
-                      client: str, date_evenement: str, lieu: str, montant: float, 
-                      participants: str = "", commentaires: str = "", urgence: str = "normale",
-                      budget: str = "", categorie: str = "", typologie_client: str = "",
-                      groupe_groupement: str = "", region: str = "", agence: str = "",
-                      client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
-                      demandeur_participe: bool = True, participants_libres: str = "",
-                      selected_participants: List[int] = None) -> Tuple[bool, Optional[int]]:
-        """Créer une nouvelle demande avec gestion des participants ET validation centralisée"""
-        
-        print(f"[DEBUG] create_demande called by user_id: {user_id} with type: {type_demande}")
-        print(f"[DEBUG] Nom manifestation: {nom_manifestation}, Client: {client}, Montant: {montant}")
-        
-        # VALIDATION OBLIGATOIRE via le système centralisé
-        from utils.dropdown_manager import DropdownSecurityLayer
-        
-        demande_data = {
-            'budget': budget,
-            'categorie': categorie,
-            'typologie_client': typologie_client,
-            'groupe_groupement': groupe_groupement,
-            'region': region
-        }
-        
-        # Vérifier que toutes les valeurs sont autorisées
-        is_valid, validated_data, errors = DropdownSecurityLayer.secure_demande_creation(demande_data)
-        
-        if not is_valid:
-            error_msg = "Valeurs non autorisées détectées: " + "; ".join(errors)
-            print(f"❌ {error_msg}")
-            return False, None
-        
-        # Créer la demande via le modèle
-        success, demande_id = DemandeModel.create_demande(
-            user_id=user_id,
-            type_demande=type_demande,
-            nom_manifestation=nom_manifestation,
-            client=client,
-            date_evenement=date_evenement,
-            lieu=lieu,
-            montant=montant,
-            participants=participants,
-            commentaires=commentaires,
-            urgence=urgence,
-            budget=budget,
-            categorie=categorie,
-            typologie_client=typologie_client,
-            groupe_groupement=groupe_groupement,
-            region=region,
-            agence=agence,
-            client_enseigne=client_enseigne,
-            mail_contact=mail_contact,
-            nom_contact=nom_contact,
-            demandeur_participe=demandeur_participe,
-            participants_libres=participants_libres
-        )
-        
-        if success and demande_id:
-            # Logger l'activité
-            ActivityLogModel.log_activity(
-                user_id, demande_id, 'creation_demande',
-                f"Création demande '{nom_manifestation}' - {montant}€"
-            )
+                       client: str, date_evenement: str, lieu: str, montant: float, 
+                       participants: str = "", commentaires: str = "", urgence: str = "normale",
+                       budget: str = "", categorie: str = "", typologie_client: str = "",
+                       groupe_groupement: str = "", region: str = "", agence: str = "",
+                       client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
+                       demandeur_participe: bool = True, participants_libres: str = "",
+                       fiscal_year: Optional[int] = None, by: Optional[str] = None,
+                       selected_participants: Optional[List[int]] = None) -> tuple[bool, Optional[int]]:
+        """Create a new demande with participant support (normal workflow)"""
+        try:
+            from utils.spinner_utils import OperationFeedback
             
-            # Gérer les participants selon le rôle
-            from models.participant import ParticipantModel
-            from models.user import UserModel
+            with OperationFeedback.create_demande():
+                # Calculate cy (calendar year) from date_evenement
+                try:
+                    date_obj = datetime.strptime(date_evenement, '%Y-%m-%d').date()
+                    cy = date_obj.year
+                except Exception:
+                    cy = None # Set cy to None if date parsing fails
+
+                # Calculate 'by' string (BYNN) from the fiscal_year integer provided by the user
+                by_string = f"BY{str(fiscal_year)[2:]}" if fiscal_year is not None and fiscal_year >= 1000 else None # Generate BYNN format
+
+                # Create the demande in the database
+                # Note: The DemandeModel.create_demande method also needs to accept fiscal_year, by, and cy
+                success, demande_id = DemandeModel.create_demande(
+                    user_id=user_id,
+                    type_demande=type_demande,
+                    nom_manifestation=nom_manifestation,
+                    client=client,
+                    date_evenement=date_evenement,
+                    lieu=lieu,
+                    montant=montant,
+                    participants=participants,
+                    commentaires=commentaires,
+                    urgence=urgence,
+                    budget=budget,
+                    categorie=categorie,
+                    typologie_client=typologie_client,
+                    groupe_groupement=groupe_groupement,
+                    region=region,
+                    agence=agence,
+                    client_enseigne=client_enseigne,
+                    mail_contact=mail_contact,
+                    nom_contact=nom_contact,
+                    demandeur_participe=demandeur_participe,
+                    participants_libres=participants_libres,
+                    cy=cy, # Pass calculated cy
+                    by=by_string, # Pass generated by string
+                    fy=fiscal_year # Pass user-provided fiscal year to the fy parameter
+                )
             
-            # Récupérer le rôle de l'utilisateur
-            user_data = UserModel.get_user_by_id(user_id)
-            if user_data:
-                user_role = user_data['role']
+            if success and demande_id:
+                # Logger l'activité
+                ActivityLogModel.log_activity(
+                    user_id, demande_id, 'creation_demande',
+                    f"Création demande '{nom_manifestation}' - {montant}€"
+                )
                 
-                # Logique selon le rôle
-                if user_role == 'tc':
-                    # TC participe automatiquement
-                    ParticipantModel.add_participant(demande_id, user_id, user_id)
+                # Gérer les participants selon le rôle
+                from models.participant import ParticipantModel
+                from models.user import UserModel
+                
+                # Récupérer le rôle de l'utilisateur
+                user_data = UserModel.get_user_by_id(user_id)
+                if user_data:
+                    user_role = user_data['role']
                     
-                elif user_role == 'dr':
-                    # DR peut choisir de participer
-                    if demandeur_participe:
+                    # Logique selon le rôle
+                    if user_role == 'tc':
+                        # TC participe automatiquement
                         ParticipantModel.add_participant(demande_id, user_id, user_id)
-                    
-                # Ajouter les participants sélectionnés (TCs pour DR)
-                if selected_participants:
-                    for selected_participant_id in selected_participants:
-                        ParticipantModel.add_participant(demande_id, selected_participant_id, user_id)
+                        
+                    elif user_role == 'dr':
+                        # DR peut choisir de participer
+                        if demandeur_participe:
+                            ParticipantModel.add_participant(demande_id, user_id, user_id)
+                        
+                    # Add participants selected by the user in the form
+                    if selected_participants is not None:
+                        for participant_id in selected_participants:
+                             # Ensure participant_id is a valid user ID and not the creator's ID if auto-added
+                             # (Basic check, more robust validation might be needed)
+                             if participant_id and participant_id != user_id:
+                                 ParticipantModel.add_participant(demande_id, participant_id, user_id)
+                
+                # Handle automatic DR validation if the creator is a DR
+                if user_data and user_data['role'] == 'dr':
+                     now = datetime.now().isoformat()
+                     # Mettre à jour le statut et les champs de validation DR
+                     # Note: This assumes a DR validating their own request moves it to en_attente_financier
+                     # This might need adjustment based on exact workflow requirements.
+                     update_success = DemandeModel.update_demande(
+                          demande_id,
+                          status='en_attente_financier', # Pass directly to the next stage after DR validation
+                          valideur_dr_id=user_id,
+                          date_validation_dr=now,
+                          commentaire_dr="Validée automatiquement par le créateur (DR)"
+                     )
+                     if not update_success:
+                          print(f"[WARNING] Failed to auto-validate DR demand {demande_id}")
             
-            # Gérer la validation automatique pour les DR créateurs
-            if user_data and user_data['role'] == 'dr':
-                 now = datetime.now().isoformat()
-                 # Mettre à jour le statut et les champs de validation DR
-                 update_success = DemandeModel.update_demande(
-                      demande_id,
-                      status='en_attente_financier', # Passer directement à l'étape suivante
-                      valideur_dr_id=user_id,
-                      date_validation_dr=now,
-                      commentaire_dr="Validée automatiquement par le créateur (DR)"
-                 )
-                 if not update_success:
-                      print(f"[WARNING] Failed to auto-validate DR demand {demande_id}")
-        
-        print(f"[DEBUG] create_demande returning success: {success}, demande_id: {demande_id}")
-        return success, demande_id
+            print(f"[DEBUG] create_demande returning success: {success}, demande_id: {demande_id}")
+            return success, demande_id
+        except Exception as e:
+            print(f"Erreur création demande (contrôleur): {e}")
+            return False, None
     
     @staticmethod
     def get_demandes_for_user(user_id: int, role: str, search_query: str = "", 
-                             status_filter: str = "tous") -> pd.DataFrame:
+                             status_filter: str = "tous", fiscal_year: Optional[int] = None) -> pd.DataFrame:
         """Récupérer les demandes pour un utilisateur selon son rôle"""
-        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter)
+        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter, fiscal_year)
     
     @staticmethod
     def get_demande_by_id(demande_id: int) -> Optional[Dict[str, Any]]:
@@ -178,9 +182,9 @@ class DemandeController:
         return success, message
     
     @staticmethod
-    def get_dashboard_stats(user_id: int, role: str) -> Dict[str, Any]:
+    def get_dashboard_stats(user_id: int, role: str, fiscal_year: Optional[int] = None) -> Dict[str, Any]:
         """Récupérer les statistiques pour le tableau de bord"""
-        return DemandeModel.get_dashboard_stats(user_id, role)
+        return DemandeModel.get_dashboard_stats(user_id, role, fiscal_year)
     
     @staticmethod
     def get_analytics_data(user_id: int, role: str) -> Dict[str, Any]:
