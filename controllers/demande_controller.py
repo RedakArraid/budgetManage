@@ -6,6 +6,7 @@ import pandas as pd
 from models.demande import DemandeModel
 from models.activity_log import ActivityLogModel
 from models.database import db
+from datetime import datetime
 
 class DemandeController:
     """Contrôleur pour la gestion des demandes"""
@@ -96,8 +97,22 @@ class DemandeController:
                     
                 # Ajouter les participants sélectionnés (TCs pour DR)
                 if selected_participants:
-                    for participant_id in selected_participants:
-                        ParticipantModel.add_participant(demande_id, participant_id, user_id)
+                    for selected_participant_id in selected_participants:
+                        ParticipantModel.add_participant(demande_id, selected_participant_id, user_id)
+            
+            # Gérer la validation automatique pour les DR créateurs
+            if user_data and user_data['role'] == 'dr':
+                 now = datetime.now().isoformat()
+                 # Mettre à jour le statut et les champs de validation DR
+                 update_success = DemandeModel.update_demande(
+                      demande_id,
+                      status='en_attente_financier', # Passer directement à l'étape suivante
+                      valideur_dr_id=user_id,
+                      date_validation_dr=now,
+                      commentaire_dr="Validée automatiquement par le créateur (DR)"
+                 )
+                 if not update_success:
+                      print(f"[WARNING] Failed to auto-validate DR demand {demande_id}")
         
         print(f"[DEBUG] create_demande returning success: {success}, demande_id: {demande_id}")
         return success, demande_id

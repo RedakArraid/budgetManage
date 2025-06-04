@@ -211,6 +211,11 @@ def _display_recent_demandes(user_id, role):
     """Display recent demandes"""
     from utils.session_manager import session_manager
     
+    # Removed the outer container with background color
+    
+    # Keep the main subheader for the section (already in dashboard_page)
+    # Removed the duplicate st.subheader("📋 Demandes Récentes") from here
+    
     demandes = DemandeController.get_demandes_for_user(user_id, role)
     
     if not demandes.empty:
@@ -220,22 +225,28 @@ def _display_recent_demandes(user_id, role):
         for idx, row in recent_demandes.iterrows():
             _display_demande_card(row)
         
+        # Adjust button style if needed inside the dark container
         if len(demandes) > 5:
-            if st.button(f"Voir toutes les demandes ({len(demandes)})", use_container_width=True):
+            st.markdown("<br>", unsafe_allow_html=True) # Add a little space
+            if st.button(f"Voir toutes les demandes ({len(demandes)})", use_container_width=True, key="dashboard_see_all_demandes"):
                 session_manager.set_current_page("demandes")
                 st.rerun()
     else:
         st.info("Aucune demande pour le moment")
 
+    # Removed the closing container div
+
 def _display_demande_card(row):
     """Display a single demande card"""
     from config.settings import get_status_info
-    
+    from utils.date_utils import format_date # Ensure format_date is imported here if used below
+
     status_info = get_status_info(row['status'])
     status_class = f"status-{row['status']}"
     
+    # Added background color, padding, and margin-bottom to the demand card div
     st.markdown(f"""
-    <div class="demand-card">
+    <div class="demand-card" style="background-color: #2b2b2b; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1;">
                 <h4 style="margin: 0 0 0.5rem 0; color: #4CAF50;">{row['nom_manifestation']}</h4>

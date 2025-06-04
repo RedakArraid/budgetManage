@@ -316,51 +316,38 @@ def _display_cards_view(demandes, user_info):
                 # Statut DR
                 dr_validated_id = row.get('valideur_dr_id')
                 dr_status_text = "⏳ En attente DR"
-                if dr_validated_id is not None:
-                    # Assurer que l'ID est un entier valide avant de chercher l'utilisateur
-                    if isinstance(dr_validated_id, (int, float)) and not pd.isna(dr_validated_id):
-                        dr_validated_id = int(dr_validated_id)
-                        dr_validator = UserModel.get_user_by_id(dr_validated_id)
-                        if dr_validator:
-                            dr_status_text = f"✅ Validé par {dr_validator.get('prenom', '')} {dr_validator.get('nom', '')} : {format_date(row.get('date_validation_dr'))}"
-                        else:
-                            dr_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dr'))}"
-
+                if dr_validated_id is not None and isinstance(dr_validated_id, (int, float)) and not pd.isna(dr_validated_id):
+                    dr_validated_id = int(dr_validated_id)
+                    dr_validator = UserModel.get_user_by_id(dr_validated_id)
+                    if dr_validator:
+                        dr_status_text = f"✅ Validé par {dr_validator.get('prenom', '')} {dr_validator.get('nom', '')} : {format_date(row.get('date_validation_dr'))}"
+                    else:
+                        dr_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dr'))}"
                 st.markdown(f"- {dr_status_text}")
-                if dr_validated_id is not None and row.get('commentaire_dr'):
-                    st.markdown(f"💬 *{row.get('commentaire_dr')}*")
 
                 # Statut Financier
                 fin_validated_id = row.get('valideur_financier_id')
                 fin_status_text = "⏳ En attente Financier"
-                if fin_validated_id is not None:
-                     if isinstance(fin_validated_id, (int, float)) and not pd.isna(fin_validated_id):
-                          fin_validated_id = int(fin_validated_id)
-                          fin_validator = UserModel.get_user_by_id(fin_validated_id)
-                          if fin_validator:
-                               fin_status_text = f"✅ Validé par {fin_validator.get('prenom', '')} {fin_validator.get('nom', '')} : {format_date(row.get('date_validation_financier'))}"
-                          else:
-                               fin_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_financier'))}"
-
+                if fin_validated_id is not None and isinstance(fin_validated_id, (int, float)) and not pd.isna(fin_validated_id):
+                     fin_validated_id = int(fin_validated_id)
+                     fin_validator = UserModel.get_user_by_id(fin_validated_id)
+                     if fin_validator:
+                          fin_status_text = f"✅ Validé par {fin_validator.get('prenom', '')} {fin_validator.get('nom', '')} : {format_date(row.get('date_validation_financier'))}"
+                     else:
+                          fin_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_financier'))}"
                 st.markdown(f"- {fin_status_text}")
-                if fin_validated_id is not None and row.get('commentaire_financier'):
-                    st.markdown(f"💬 *{row.get('commentaire_financier')}*")
 
                 # Statut DG
                 dg_validated_id = row.get('valideur_dg_id')
                 dg_status_text = "⏳ En attente DG"
-                if dg_validated_id is not None:
-                    if isinstance(dg_validated_id, (int, float)) and not pd.isna(dg_validated_id):
-                         dg_validated_id = int(dg_validated_id)
-                         dg_validator = UserModel.get_user_by_id(dg_validated_id)
-                         if dg_validator:
-                              dg_status_text = f"✅ Validé par {dg_validator.get('prenom', '')} {dg_validator.get('nom', '')} : {format_date(row.get('date_validation_dg'))}"
-                         else:
-                              dg_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dg'))}"
-
+                if dg_validated_id is not None and isinstance(dg_validated_id, (int, float)) and not pd.isna(dg_validated_id):
+                    dg_validated_id = int(dg_validated_id)
+                    dg_validator = UserModel.get_user_by_id(dg_validated_id)
+                    if dg_validator:
+                        dg_status_text = f"✅ Validé par {dg_validator.get('prenom', '')} {dg_validator.get('nom', '')} : {format_date(row.get('date_validation_dg'))}"
+                    else:
+                        dg_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dg'))}"
                 st.markdown(f"- {dg_status_text}")
-                if dg_validated_id is not None and row.get('commentaire_dg'):
-                    st.markdown(f"💬 *{row.get('commentaire_dg')}*")
 
             # Commentaires généraux sous les colonnes
             if row.get('commentaires'):

@@ -395,89 +395,138 @@ class UserModel:
                 conn.execute('BEGIN TRANSACTION')
                 
                 try:
-                    # 1. Supprimer les demandes créées par cet utilisateur
-                    demandes_result = conn.execute(
-                        "SELECT COUNT(*) FROM demandes WHERE user_id = ?", 
+                    # Ensure foreign key constraints are enabled in this connection
+                    conn.execute('PRAGMA foreign_keys = ON')
+
+                    # 1. Mettre à jour les demandes où cet utilisateur est valideur
+                    # Mettre à NULL les références à l'utilisateur supprimé dans les demandes d'autres utilisateurs
+                    conn.execute(
+                         "UPDATE demandes SET valideur_dr_id = NULL WHERE valideur_dr_id = ?",
+                         (user_id,)
+                    )
+                    conn.execute(
+                         "UPDATE demandes SET valideur_financier_id = NULL WHERE valideur_financier_id = ?",
+                         (user_id,)
+                    )
+                    conn.execute(
+                         "UPDATE demandes SET valideur_dg_id = NULL WHERE valideur_dg_id = ?",
+                         (user_id,)
+                    )
+
+                    # --- Cleanup dependents of demandes created by this user ---
+                    # Get the IDs of demands created by this user
+                    demande_ids_to_delete_result = conn.execute(
+                        "SELECT id FROM demandes WHERE user_id = ?",
                         (user_id,)
-                    ).fetchone()
-                    demandes_count = demandes_result[0] if demandes_result else 0
+                    ).fetchall()
+                    demande_ids_to_delete = [row[0] for row in demande_ids_to_delete_result]
                     
-                    if demandes_count > 0:
-                        # Supprimer les participants des demandes
-                        conn.execute(
-                            "DELETE FROM demande_participants WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
-                            (user_id,)
-                        )
-                        
-                        # Supprimer les validations des demandes
-                        conn.execute(
-                            "DELETE FROM demande_validations WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
-                            (user_id,)
-                        )
-                        
-                        # Supprimer les notifications liées aux demandes
-                        conn.execute(
-                            "DELETE FROM notifications WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
-                            (user_id,)
-                        )
-                        
-                        # Supprimer les demandes elles-mêmes
-                        conn.execute(
-                            "DELETE FROM demandes WHERE user_id = ?",
-                            (user_id,)
-                        )
-                    
-                    # 2. Supprimer les participations à d'autres demandes
+                    if demande_ids_to_delete:
+                         # Convert list of IDs to a string format suitable for SQL IN clause
+                         demande_ids_str = ', '.join(map(str, demande_ids_to_delete))
+
+                         # 2. Supprimer les logs d'activité liés aux demandes créées par cet utilisateur
+                         conn.execute(
+                              f"DELETE FROM activity_logs WHERE demande_id IN ({demande_ids_str})"
+                         )
+
+                         # 3. Supprimer les participants des demandes créées par cet utilisateur
+                         conn.execute(
+                             f"DELETE FROM demande_participants WHERE demande_id IN ({demande_ids_str})"
+                         )
+
+                         # 4. Supprimer les validations des demandes créées par cet utilisateur
+                         conn.execute(
+                              f"DELETE FROM demande_validations WHERE demande_id IN ({demande_ids_str})"
+                         )
+
+                         # 5. Supprimer les notifications liées aux demandes créées par cet utilisateur
+                         conn.execute(
+                              f"DELETE FROM notifications WHERE demande_id IN ({demande_ids_str})"
+                         )
+
+                         # Add deletion for a potential comments table
+                         # Assuming a table named 'commentaires' with a foreign key 'demande_id'
+                         try:
+                              conn.execute(
+                                   f"DELETE FROM commentaires WHERE demande_id IN ({demande_ids_str})"
+                              )
+                         except Exception as e:
+                              # Log a warning but don't fail the transaction if the table doesn't exist
+                              print(f"Warning: Could not delete from potential commentaires table: {e}")
+                              pass # Continue the transaction even if this table doesn't exist
+
+                         # Add deletion for a potential budget lines table
+                         # Assuming a table named 'lignes_budgetaires' with a foreign key 'demande_id'
+                         try:
+                              conn.execute(
+                                   f"DELETE FROM lignes_budgetaires WHERE demande_id IN ({demande_ids_str})"
+                              )
+                         except Exception as e:
+                              print(f"Warning: Could not delete from potential lignes_budgetaires table: {e}")
+                              pass # Continue
+
+                         # Now, attempt to delete the demands themselves
+                         conn.execute(
+                             f"DELETE FROM demandes WHERE id IN ({demande_ids_str})"
+                         )
+
+
+                    # --- Cleanup other user-related dependents ---
+
+                    # 6. Supprimer les participations de cet utilisateur à d'autres demandes (non créées par lui)
                     conn.execute(
                         "DELETE FROM demande_participants WHERE user_id = ?",
                         (user_id,)
                     )
-                    
-                    # 3. Supprimer les validations effectuées par cet utilisateur
+
+                    # 7. Supprimer les validations effectuées par cet utilisateur dans n'importe quelle demande
                     conn.execute(
                         "DELETE FROM demande_validations WHERE validated_by = ?",
                         (user_id,)
                     )
-                    
-                    # 4. Supprimer les notifications envoyées à cet utilisateur
+
+                    # 8. Supprimer les notifications destinées spécifiquement à cet utilisateur
                     conn.execute(
                         "DELETE FROM notifications WHERE user_id = ?",
                         (user_id,)
                     )
-                    
-                    # 5. Supprimer les logs d'activité
+
+                    # 9. Supprimer les logs d'activité liés à cet utilisateur (qui a effectué l'action ou qui est concerné)
                     conn.execute(
                         "DELETE FROM activity_logs WHERE user_id = ?",
                         (user_id,)
                     )
-                    
-                    # 6. Mettre à jour les utilisateurs qui ont cet utilisateur comme directeur
+                    # Optionnel: Gérer les logs où l'utilisateur est la cible (target_user_id) si une telle colonne existe et a une FK
+
+                    # 10. Mettre à jour les utilisateurs qui ont cet utilisateur comme directeur
                     subordinates_result = conn.execute(
                         "SELECT COUNT(*) FROM users WHERE directeur_id = ?",
                         (user_id,)
                     ).fetchone()
                     subordinates_count = subordinates_result[0] if subordinates_result else 0
-                    
+
                     if subordinates_count > 0:
                         # Mettre directeur_id à NULL pour les subordonnés
                         conn.execute(
                             "UPDATE users SET directeur_id = NULL WHERE directeur_id = ?",
                             (user_id,)
                         )
-                    
-                    # 7. Supprimer l'utilisateur lui-même
+
+                    # 11. Supprimer l'utilisateur lui-même
                     conn.execute(
                         "DELETE FROM users WHERE id = ?",
                         (user_id,)
                     )
-                    
+
                     # Valider la transaction
                     conn.commit()
-                    
-                    return True, f"Utilisateur {user_info['prenom']} {user_info['nom']} supprimé définitivement (avec {demandes_count} demande(s) et {subordinates_count} subordonné(s) affecté(s))"
-                    
+
+                    return True, f"Utilisateur {user_info['prenom']} {user_info['nom']} supprimé définitivement (avec {len(demande_ids_to_delete)} demande(s) créée(s) et {subordinates_count} subordonné(s) affecté(s))"
+
                 except Exception as e:
                     conn.rollback()
+                    # Re-raise the exception to be caught by the outer except block
                     raise e
                     
         except Exception as e:

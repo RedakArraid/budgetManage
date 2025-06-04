@@ -343,3 +343,25 @@ class UserController:
         except Exception as e:
             st.error(f"Erreur lors de l'export: {e}")
             return pd.DataFrame()
+    
+    @staticmethod
+    def delete_user_complete(user_id: int) -> Tuple[bool, str]:
+        """Permanently delete a user and associated data"""
+        try:
+            # Optionnel: Ajouter des vérifications ici si nécessaire (ex: ne pas supprimer le dernier admin)
+            
+            success, message = UserModel.permanently_delete_user(user_id)
+            
+            if success:
+                # Log de l'activité
+                current_user_id = AuthController.get_current_user_id()
+                ActivityLogModel.log_activity(
+                    current_user_id, user_id, 'permanently_delete_user',
+                    f"Suppression définitive de l'utilisateur ID: {user_id}"
+                )
+                return True, "Utilisateur supprimé définitivement avec succès."
+            else:
+                return False, message
+
+        except Exception as e:
+            return False, f"Erreur lors de la suppression définitive de l'utilisateur: {str(e)}"
