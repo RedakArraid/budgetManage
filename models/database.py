@@ -99,6 +99,8 @@ class Database:
             if not self.column_exists(table_name, column_name):
                 self.execute_query(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}")
                 logger.info(f"➕ Colonne {column_name} ajoutée à {table_name}")
+            else:
+                logger.info(f"✅ Colonne {column_name} existe déjà dans {table_name}")
         except Exception as e:
             logger.error(f"Erreur ajout colonne {column_name}: {e}")
     
@@ -295,6 +297,7 @@ class Database:
             self.add_column_if_not_exists('demandes', 'participants_libres', 'TEXT DEFAULT ""')
             self.add_column_if_not_exists('demandes', 'cy', 'INTEGER')
             self.add_column_if_not_exists('demandes', 'by', 'TEXT')
+            self.add_column_if_not_exists('demandes', 'fiscal_year', 'INTEGER')
             self.add_column_if_not_exists('demandes', 'valideur_dg_id', 'INTEGER')
             self.add_column_if_not_exists('demandes', 'date_validation_dg', 'TIMESTAMP')
             self.add_column_if_not_exists('demandes', 'commentaire_dg', 'TEXT')

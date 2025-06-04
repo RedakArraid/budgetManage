@@ -114,7 +114,7 @@ class DemandeModel:
                     INSERT INTO demandes (user_id, type_demande, nom_manifestation, client, date_evenement, 
                                         lieu, montant, participants, commentaires, urgence, budget, categorie, 
                                         typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fy)
+                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fiscal_year)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (creator_id, type_demande, nom_manifestation, client, date_evenement, 
                       lieu, montant, participants, commentaires, urgence, budget, categorie, 
@@ -168,61 +168,72 @@ class DemandeModel:
             return False, None
     
     @staticmethod
-    def create_demande(user_id: int, type_demande: str, nom_manifestation: str, 
-                       client: str, date_evenement: str, lieu: str, montant: float, 
-                       participants: str = "", commentaires: str = "", urgence: str = "normale",
-                       budget: str = "", categorie: str = "", typologie_client: str = "",
-                       groupe_groupement: str = "", region: str = "", agence: str = "",
-                       client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
-                       demandeur_participe: bool = True, participants_libres: str = "",
-                       fy: Optional[int] = None, by: Optional[str] = None,
-                       cy: Optional[int] = None) -> tuple[bool, Optional[int]]:
+    def create_demande(
+        user_id: int,
+        type_demande: str,
+        nom_manifestation: str,
+        client: str,
+        date_evenement: str,
+        lieu: str,
+        montant: float,
+        participants: str = "",
+        commentaires: str = "",
+        urgence: str = "normale",
+        budget: str = "",
+        categorie: str = "",
+        typologie_client: str = "",
+        groupe_groupement: str = "",
+        region: str = "",
+        agence: str = "",
+        client_enseigne: str = "",
+        mail_contact: str = "",
+        nom_contact: str = "",
+        demandeur_participe: bool = True,
+        participants_libres: str = "",
+        fy: Optional[int] = None,
+        by: Optional[str] = None,
+        cy: Optional[int] = None,
+    ) -> tuple[bool, Optional[int]]:
         """Create a new demande with participant support (normal workflow)"""
         try:
             from utils.spinner_utils import OperationFeedback
-            
+
             with OperationFeedback.create_demande():
-                # Calculate cy (calendar year) from date_evenement
-                try:
-                    date_obj = datetime.strptime(date_evenement, '%Y-%m-%d').date()
-                    calendar_year = date_obj.year
-                except Exception:
-                    calendar_year = None # Set cy to None if date parsing fails
+                # Calculate cy (calendar year) from date_evenement if not provided
+                calendar_year = cy # Use provided cy if available
+                if calendar_year is None:
+                    try:
+                        date_obj = datetime.strptime(date_evenement, '%Y-%m-%d').date()
+                        calendar_year = date_obj.year
+                    except Exception:
+                        calendar_year = None  # Set cy to None if date parsing fails
 
-                # Calculate 'by' string (BYNN) from the fiscal_year integer provided by the user
-                # Use the fiscal_year value passed as 'fy'
-                by_string = f"BY{str(fy)[2:]}" if fy is not None and fy >= 1000 else None # Generate BYNN format from fy
+                # Calculate 'by' string (BYNN) from the fiscal_year integer provided by the user (fy)
+                by_string = by # Use provided by if available
+                if by_string is None and fy is not None and fy >= 1000:
+                     by_string = f"BY{str(fy)[2:]}" # Generate BYNN format from fy
 
-                # Create the demande in the database
-                # Note: The DemandeModel.create_demande method also needs to accept fiscal_year, by, and cy
-                success, demande_id = DemandeModel.create_demande(
-                    user_id=user_id,
-                    type_demande=type_demande,
-                    nom_manifestation=nom_manifestation,
-                    client=client,
-                    date_evenement=date_evenement,
-                    lieu=lieu,
-                    montant=montant,
-                    participants=participants,
-                    commentaires=commentaires,
-                    urgence=urgence,
-                    budget=budget,
-                    categorie=categorie,
-                    typologie_client=typologie_client,
-                    groupe_groupement=groupe_groupement,
-                    region=region,
-                    agence=agence,
-                    client_enseigne=client_enseigne,
-                    mail_contact=mail_contact,
-                    nom_contact=nom_contact,
-                    demandeur_participe=demandeur_participe,
-                    participants_libres=participants_libres,
-                    cy=calendar_year, # Use calculated calendar year
-                    by=by_string, # Use generated by string
-                    fy=fy # Use user-provided fiscal year, insert into fy column
+                # Insert the demande into the database
+                demande_id = db.execute_query(
+                    '''
+                    INSERT INTO demandes (
+                        user_id, type_demande, nom_manifestation, client, date_evenement,
+                        lieu, montant, participants, commentaires, urgence, budget, categorie,
+                        typologie_client, groupe_groupement, region, agence, client_enseigne,
+                        mail_contact, nom_contact, demandeur_participe, participants_libres,
+                        cy, by, fiscal_year
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (user_id, type_demande, nom_manifestation, client, date_evenement,
+                      lieu, montant, participants, commentaires, urgence, budget, categorie,
+                      typologie_client, groupe_groupement, region, agence, client_enseigne,
+                      mail_contact, nom_contact, demandeur_participe, participants_libres,
+                      calendar_year, by_string, fy), # Use calculated/provided values
+                    fetch='lastrowid'
                 )
 
-            return success, demande_id # Moved return inside with block
+                return True, demande_id
+
         except Exception as e:
             print(f"Erreur création demande (modèle): {e}")
             return False, None
@@ -377,7 +388,7 @@ class DemandeModel:
 
                 # Add fiscal_year filter
                 if fiscal_year is not None:
-                    where_conditions.append("fy = ?")
+                    where_conditions.append("fiscal_year = ?")
                     params.append(fiscal_year)
 
                 if search_query:
@@ -461,7 +472,7 @@ class DemandeModel:
                     'status', 'valideur_dr_id', 'valideur_financier_id', 'date_validation_dr',
                     'date_validation_financier', 'commentaire_dr', 'commentaire_financier',
                     'valideur_dg_id', 'date_validation_dg', 'commentaire_dg',
-                    'demandeur_participe', 'participants_libres', 'cy', 'by', 'fy'
+                    'demandeur_participe', 'participants_libres', 'cy', 'by', 'fiscal_year'
                 ]
                 
                 # Si la date d'événement change, recalculer cy et by
@@ -594,12 +605,12 @@ class DemandeModel:
 
             # Add fiscal_year filtering
             if fiscal_year is not None:
-                role_conditions.append("d.fy = ?")
+                role_conditions.append("d.fiscal_year = ?")
                 params.append(fiscal_year)
 
             # Combine conditions
             if role_conditions:
-                 base_query += " WHERE " + " AND '.join(role_conditions)"
+                base_query += " WHERE " + " AND ".join(role_conditions)
 
             # Execute query
             stats = db.execute_query(base_query, tuple(params), fetch='one')

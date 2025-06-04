@@ -257,7 +257,7 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
             # Fallback simple si le composant avancé échoue
             demandeur_participe = st.checkbox("Je participe à cet événement", value=True, key="full_participe")
             selected_participants = []
-            participants_libres = st.text_area("Autres participants (optionnel)", key="full_participants_libres")
+            participants_libres = st.text_area("Autres participants (optionnel)", key="full_participants_libres", label_visibility="visible")
 
         # 4. Informations complémentaires
         st.markdown("### 📝 Informations Complémentaires")
