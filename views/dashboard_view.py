@@ -244,23 +244,24 @@ def _display_demande_card(row):
     status_info = get_status_info(row['status'])
     status_class = f"status-{row['status']}"
     
-    # Changed background color to match the sidebar background (#000000)
+    # Changed background color to a very light grey (#ebebeb) to approximate the user's perceived Windows sidebar color
+    # Text colors are kept suitable for a light background
     st.markdown(f"""
-    <div class="demand-card" style="background-color: #000000; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
+    <div class="demand-card" style="background-color: #ebebeb; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1;">
                 <h4 style="margin: 0 0 0.5rem 0; color: #4CAF50;">{row['nom_manifestation']}</h4>
-                <p style="margin: 0; color: #ddd; font-size: 0.9rem;">
+                <p style="margin: 0; color: #333; font-size: 0.9rem;">
                     🏢 {row['client']} • 📅 {format_date(row['date_evenement'])} • 📍 {row['lieu']}
                 </p>
-                <p style="margin: 0.5rem 0 0 0; color: #eee; font-size: 0.8rem;">
+                <p style="margin: 0.5rem 0 0 0; color: #555; font-size: 0.8rem;">
                     👤 {row['prenom']} {row['nom']} • 📧 {row['email']}
                 </p>
                 <span class="{status_class}">{status_info['label']}</span>
             </div>
             <div style="text-align: right;">
                 <h3 style="margin: 0; color: #4CAF50;">{row['montant']:,.0f}€</h3>
-                <p style="margin: 0; color: #eee; font-size: 0.8rem;">{row['updated_at'][:10]}</p>
+                <p style="margin: 0; color: #555; font-size: 0.8rem;">{row['updated_at'][:10]}</p>
             </div>
         </div>
     </div>
