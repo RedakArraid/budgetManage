@@ -132,11 +132,10 @@ def _display_simplified_form(type_demande, user_info):
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="simple_urgence")
             
             current_year = date.today().year
-            # Année fiscale au format BYXX même en mode simplifié
-            default_byxx = f"BY{(current_year + 1) % 100:02d}"
+            # Année fiscale au format BYXX par défaut
             fiscal_year = st.text_input("🗓️ Année Fiscale*", 
-                                      value=default_byxx,
-                                      help="Format BYXX (ex: BY25 pour Mai 2024 - Avril 2025)",
+                                      value="BY25",
+                                      help="Format BYXX (ex: BY25)",
                                       key="simple_fiscal")
         
         commentaires = st.text_area("💭 Commentaires", height=100, key="simple_comments")
@@ -180,7 +179,7 @@ def _display_simplified_form(type_demande, user_info):
                         demandeur_participe=True,
                         participants_libres="",
                         selected_participants=[],
-                        fiscal_year=fiscal_year
+                        by=fiscal_year
                     )
                     
                     if success:
@@ -245,19 +244,15 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
             montant = st.number_input("💰 Montant (€)*", min_value=0.0, step=50.0, key="full_montant")
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="full_urgence")
             
-            # Generate list of fiscal years (BY format)
-            current_calendar_year = date.today().year
-            fiscal_year_options_by = []
-            # Generate BY options for roughly 5 years before and 5 years after the current calendar year
-            for year in range(current_calendar_year - 5, current_calendar_year + 6):
-                fiscal_year_options_by.append(f"BY{str(year)[2:]}")
-            # You might want to pre-select the current fiscal year based on the current date
-            # For simplicity now, let's just set a default or leave it to the first option
-
-            selected_by = st.selectbox("🗓️ Année Fiscale*", 
-                                       options=fiscal_year_options_by,
-                                       index=fiscal_year_options_by.index(f"BY{str(current_calendar_year)[2:]}") if f"BY{str(current_calendar_year)[2:]}" in fiscal_year_options_by else 0,
-                                       key="full_by")
+            # Année fiscale comme les autres listes déroulantes
+            if annee_fiscale_options:
+                selected_by = st.selectbox("🗓️ Année Fiscale*", 
+                                           options=[opt[0] for opt in annee_fiscale_options],
+                                           format_func=lambda x: next((opt[1] for opt in annee_fiscale_options if opt[0] == x), x),
+                                           key="full_by")
+            else:
+                st.error("⚠️ Aucune année fiscale configurée. Contactez l'administrateur.")
+                selected_by = None
 
         # 3. Participants
         st.markdown("### 👥 Participants")
@@ -354,10 +349,8 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres or "",
                 selected_participants=selected_participants,
-                # Passing the selected BY string from the selectbox
+                # Passing the selected value from the selectbox
                 by=selected_by,
-                # The controller will need to derive fy from the 'by' string if needed for the DB.
-                fy=None, # Explicitly pass None for fy as it's not entered here
                 # fiscal_year=fiscal_year # Remove this line as it's no longer used
             )
         

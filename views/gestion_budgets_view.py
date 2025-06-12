@@ -33,6 +33,7 @@ def gestion_budgets_view():
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        # Sélectionner l'année fiscale depuis les options configurées
         selected_year_str = st.selectbox(
             "📅 Année Fiscale",
             options=[opt[0] for opt in annee_fiscale_options],
@@ -40,11 +41,8 @@ def gestion_budgets_view():
             index=len(annee_fiscale_options)-1 if annee_fiscale_options else 0,  # Dernière année par défaut
             help="Sélectionnez l'année fiscale à gérer"
         )
-        # Convertir le format BYXX en année numérique
-        selected_year = byxx_to_year(selected_year_str)
-        if selected_year is None:
-            st.error(f"❌ Format d'année invalide: {selected_year_str}")
-            return
+        # Utiliser directement la valeur sélectionnée
+        selected_year = selected_year_str
     
     with col2:
         if st.button("🔄 Actualiser", use_container_width=True):

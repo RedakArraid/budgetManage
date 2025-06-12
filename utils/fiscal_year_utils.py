@@ -113,9 +113,43 @@ def get_fiscal_year_from_date(date_obj):
     
     return year_to_byxx(start_year)
 
+def validate_byxx_format(byxx_value):
+    """
+    Validation détaillée du format BYXX
+    
+    Args:
+        byxx_value (str): Valeur à valider
+        
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    if not byxx_value:
+        return False, "Valeur vide"
+    if not isinstance(byxx_value, str):
+        return False, "Format non-texte"
+    if not byxx_value.startswith('BY'):
+        return False, "Doit commencer par 'BY'"
+    if len(byxx_value) != 4:
+        return False, "Doit avoir 4 caractères (BYXX)"
+    if not byxx_value[2:].isdigit():
+        return False, "XX doit être numérique"
+    
+    # Vérifier que le format peut être converti (pas de restriction sur la plage pour le moment)
+    # La validation de plage métier peut être faite ailleurs si nécessaire
+    try:
+        year_suffix = int(byxx_value[2:])
+        # Juste vérifier que c'est un nombre valide de 00 à 99
+        if year_suffix < 0 or year_suffix > 99:
+            return False, "XX doit être entre 00 et 99"
+            
+    except ValueError:
+        return False, "Erreur conversion numérique"
+    
+    return True, None
+
 def validate_fiscal_year_format(value):
     """
-    Valide qu'une valeur est au bon format d'année fiscale
+    Valide qu'une valeur est au bon format d'année fiscale avec validation métier
     
     Args:
         value (str): Valeur à valider
@@ -123,18 +157,20 @@ def validate_fiscal_year_format(value):
     Returns:
         tuple: (is_valid, converted_year, error_message)
     """
-    if not value:
-        return False, None, "Valeur vide"
+    # Validation format d'abord
+    is_valid_format, format_error = validate_byxx_format(value)
+    if not is_valid_format:
+        return False, None, format_error
     
     # Tenter la conversion
     start_year = byxx_to_year(value)
     
     if start_year is None:
-        return False, None, f"Format invalide: {value}"
+        return False, None, f"Erreur conversion: {value}"
     
-    # Vérifier que l'année est dans une plage raisonnable
+    # Validation métier: plage d'années acceptable pour l'application
     if start_year < 2000 or start_year > 2050:
-        return False, start_year, f"Année hors plage acceptable: {start_year}"
+        return False, start_year, f"Année de début {start_year} hors plage métier acceptable (2000-2050)"
     
     return True, start_year, None
 

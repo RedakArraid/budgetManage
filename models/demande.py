@@ -616,8 +616,11 @@ class DemandeModel:
             stats = db.execute_query(base_query, tuple(params), fetch='one')
             
             if stats:
-                # Convert Row to dictionary
-                return dict(stats)
+                # Convert Row to dictionary and ensure no None values
+                result = dict(stats)
+                # Replace None values with 0 for numeric fields
+                result['montant_valide'] = result.get('montant_valide') or 0
+                return result
             else:
                 # Return zero stats if no data
                 return {

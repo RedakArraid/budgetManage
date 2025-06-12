@@ -55,133 +55,6 @@ def _get_usage_count(category: str, value: str) -> int:
         print(f"Erreur _get_usage_count pour {category}={value}: {e}")
         return None
 
-def _display_fiscal_year_assistant():
-    """
-    Assistant spécialisé pour la gestion des années fiscales
-    Logique métier: BY25 = Mai 2024 à Avril 2025
-    """
-    st.markdown("### 📅 Assistant Années Fiscales")
-    st.markdown("📝 **Logique métier**: BY25 = Mai 2024 à Avril 2025 (année fiscale commence en Mai)")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("✨ Générer Années Standard", use_container_width=True):
-            _generate_standard_fiscal_years()
-    
-    with col2:
-        if st.button("🗑️ Supprimer Toutes", use_container_width=True):
-            _delete_all_fiscal_years()
-    
-    with col3:
-        if st.button("🔄 Réinitialiser", use_container_width=True):
-            _reset_fiscal_years()
-    
-    # Ajout manuel rapide
-    st.markdown("#### ➕ Ajout Manuel Rapide")
-    
-    with st.form("quick_fiscal_year_add"):
-        col_year, col_add = st.columns([3, 1])
-        
-        with col_year:
-            from datetime import datetime
-            current_year = datetime.now().year
-            
-            start_year = st.number_input(
-                "Année de début de période fiscale",
-                min_value=2015,
-                max_value=2035,
-                value=current_year,
-                help="Ex: 2024 pour la période Mai 2024 - Avril 2025 (BY25)"
-            )
-        
-        with col_add:
-            st.markdown("<br>", unsafe_allow_html=True)  # Espaceur
-            submitted = st.form_submit_button("➕ Ajouter", use_container_width=True)
-        
-        if submitted:
-            _add_single_fiscal_year(start_year)
-
-def _generate_standard_fiscal_years():
-    """Génère les années fiscales standard (BY20 à BY30)"""
-    try:
-        from utils.fiscal_year_utils import year_to_byxx, get_fiscal_year_display
-        
-        # Générer les années 2019-2029 (BY20 à BY30)
-        success_count = 0
-        
-        for start_year in range(2019, 2030):
-            byxx_code = year_to_byxx(start_year)
-            label = get_fiscal_year_display(byxx_code)
-            order_index = start_year - 2018  # 2019=1, 2020=2, etc.
-            
-            try:
-                # Ajouter directement sans auto-normalisation pour les années fiscales
-                db.execute_query("""
-                    INSERT OR IGNORE INTO dropdown_options 
-                    (category, value, label, order_index, is_active)
-                    VALUES (?, ?, ?, ?, ?)
-                """, ('annee_fiscale', byxx_code, label, order_index, True))
-                success_count += 1
-            except Exception as e:
-                st.error(f"❌ Erreur {byxx_code}: {e}")
-        
-        st.success(f"✅ {success_count} années fiscales générées (BY20 à BY30)")
-        st.rerun()
-        
-    except Exception as e:
-        st.error(f"❌ Erreur génération: {e}")
-
-def _delete_all_fiscal_years():
-    """Supprime toutes les années fiscales"""
-    try:
-        deleted_count = db.execute_query("""
-            DELETE FROM dropdown_options WHERE category = 'annee_fiscale'
-        """)
-        
-        st.success(f"✅ {deleted_count} années fiscales supprimées")
-        st.rerun()
-        
-    except Exception as e:
-        st.error(f"❌ Erreur suppression: {e}")
-
-def _reset_fiscal_years():
-    """Réinitialise complètement les années fiscales"""
-    try:
-        # Supprimer puis regénérer
-        _delete_all_fiscal_years()
-        _generate_standard_fiscal_years()
-        
-        st.success("✅ Années fiscales réinitialisées avec succès!")
-        
-    except Exception as e:
-        st.error(f"❌ Erreur réinitialisation: {e}")
-
-def _add_single_fiscal_year(start_year):
-    """Ajoute une seule année fiscale"""
-    try:
-        from utils.fiscal_year_utils import year_to_byxx, get_fiscal_year_display
-        
-        byxx_code = year_to_byxx(start_year)
-        label = get_fiscal_year_display(byxx_code)
-        order_index = start_year - 2018
-        
-        # Ajouter directement sans auto-normalisation pour les années fiscales
-        rows_affected = db.execute_query("""
-            INSERT OR IGNORE INTO dropdown_options 
-            (category, value, label, order_index, is_active)
-            VALUES (?, ?, ?, ?, ?)
-        """, ('annee_fiscale', byxx_code, label, order_index, True))
-        
-        if rows_affected > 0:
-            st.success(f"✅ Année ajoutée: {label}")
-            st.rerun()
-        else:
-            st.warning(f"⚠️ {byxx_code} existe déjà")
-            
-    except Exception as e:
-        st.error(f"❌ Erreur ajout: {e}")
-
 @AuthController.require_role(['admin'])
 def admin_dropdown_options_page():
     """Page UNIQUE de gestion des listes déroulantes - CRUD complet"""
@@ -330,13 +203,6 @@ def _crud_options_tab():
     
     st.markdown("---")
     
-    # Interface spécialisée pour les années fiscales
-    if selected_category == 'annee_fiscale':
-        _display_fiscal_year_assistant()
-        st.markdown("---")
-        st.markdown("### 🚀 Assistant Années Fiscales")
-        st.info("📝 Conseil: Utilisez l'assistant ci-dessus pour gérer facilement les années fiscales avec la vraie logique métier (BY25 = Mai 2024 - Avril 2025)")
-    
     # CRUD ligne par ligne
     for option in options:
         col = st.columns([1, 3, 2, 1, 1, 2, 2])
@@ -356,22 +222,14 @@ def _crud_options_tab():
         
         # Valeur (affichage avec auto-normalisation)
         with col[2]:
-            if selected_category == 'annee_fiscale':
-                # Pour les années fiscales, pas de normalisation - format BYXX attendu
-                if option['value'].startswith('BY') and len(option['value']) == 4:
-                    st.success(option['value'])
-                else:
-                    st.warning(f"{option['value']} ⚠️")
-                    st.caption("Attendu: format BYXX (ex: BY24)")
+            # Pour toutes les catégories, utiliser la normalisation standard
+            from utils.dropdown_value_normalizer import normalize_dropdown_value
+            expected_value = normalize_dropdown_value(option['label'])
+            if option['value'] == expected_value:
+                st.success(option['value'])
             else:
-                # Pour les autres catégories, utiliser la normalisation
-                from utils.dropdown_value_normalizer import normalize_dropdown_value
-                expected_value = normalize_dropdown_value(option['label'])
-                if option['value'] == expected_value:
-                    st.success(option['value'])
-                else:
-                    st.warning(f"{option['value']} ⚠️")
-                    st.caption(f"Attendu: {expected_value}")
+                st.warning(f"{option['value']} ⚠️")
+                st.caption(f"Attendu: {expected_value}")
         
         # Ordre éditable
         with col[3]:
@@ -407,19 +265,16 @@ def _crud_options_tab():
         with col[6]:
             col_save, col_del = st.columns(2)
             
-            # Bouton sauvegarder avec auto-normalisation (sauf années fiscales)
+            # Bouton sauvegarder avec auto-normalisation standard
             with col_save:
                 if st.button("💾", key=f"save_db_{option['id']}", help="Sauvegarder"):
                     try:
-                        # Désactiver l'auto-normalisation pour les années fiscales
-                        auto_normalize = selected_category != 'annee_fiscale'
-                        
                         success, message = DropdownOptionsModel.update_option(
                             option_id=option['id'],
                             label=new_label,
                             order_index=new_order,
                             is_active=is_active,
-                            auto_normalize_value=auto_normalize
+                            auto_normalize_value=True  # Toujours utiliser la normalisation
                         )
                         
                         if success:

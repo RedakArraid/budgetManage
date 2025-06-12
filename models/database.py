@@ -367,18 +367,18 @@ class Database:
             ('region', 'sud', 'Sud', 3),
             ('region', 'est', 'Est', 4),
             ('region', 'ouest', 'Ouest', 5),
-            # Années fiscales
-            ('annee_fiscale', '2020', 'BY20', 1),
-            ('annee_fiscale', '2021', 'BY21', 2),
-            ('annee_fiscale', '2022', 'BY22', 3),
-            ('annee_fiscale', '2023', 'BY23', 4),
-            ('annee_fiscale', '2024', 'BY24', 5),
-            ('annee_fiscale', '2025', 'BY25', 6),
-            ('annee_fiscale', '2026', 'BY26', 7),
-            ('annee_fiscale', '2027', 'BY27', 8),
-            ('annee_fiscale', '2028', 'BY28', 9),
-            ('annee_fiscale', '2029', 'BY29', 10),
-            ('annee_fiscale', '2030', 'BY30', 11),
+            # Années fiscales au format BYXX (chaînes simples)
+            ('annee_fiscale', 'BY20', 'BY20', 1),
+            ('annee_fiscale', 'BY21', 'BY21', 2),
+            ('annee_fiscale', 'BY22', 'BY22', 3),
+            ('annee_fiscale', 'BY23', 'BY23', 4),
+            ('annee_fiscale', 'BY24', 'BY24', 5),
+            ('annee_fiscale', 'BY25', 'BY25', 6),
+            ('annee_fiscale', 'BY26', 'BY26', 7),
+            ('annee_fiscale', 'BY27', 'BY27', 8),
+            ('annee_fiscale', 'BY28', 'BY28', 9),
+            ('annee_fiscale', 'BY29', 'BY29', 10),
+            ('annee_fiscale', 'BY30', 'BY30', 11),
         ]
         
         for category, value, label, order_index in default_options:

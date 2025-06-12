@@ -94,7 +94,7 @@ def _display_metrics(role, stats):
         with col5:
             st.markdown(f"""
             <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
                 <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
@@ -118,7 +118,7 @@ def _display_metrics(role, stats):
         with col3:
             st.markdown(f"""
             <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
                 <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
@@ -159,7 +159,7 @@ def _display_metrics(role, stats):
         with col3:
             st.markdown(f"""
             <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
                 <p style="margin: 0; color: #333;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
