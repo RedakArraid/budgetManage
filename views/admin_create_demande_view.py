@@ -189,16 +189,24 @@ def admin_create_demande_page():
                     'critique': '🔴 Critique'
                 }[x]
             )
-            # Added Fiscal Year input
-            current_year = date.today().year
-            fiscal_year = st.number_input(
-                "🗓️ Année Fiscale*",
-                min_value=current_year - 5, # Allow selecting a few past years
-                max_value=current_year + 5, # Allow selecting a few future years
-                value=current_year, # Default to current year
-                step=1,
-                format='%d'
-            )
+            # Année fiscale depuis les dropdowns admin
+            from utils.fiscal_year_utils import get_valid_fiscal_years, get_default_fiscal_year
+            fiscal_options = get_valid_fiscal_years()
+            
+            if fiscal_options:
+                selected_by = st.selectbox(
+                    "🗓️ Année Fiscale*",
+                    options=[opt[0] for opt in fiscal_options],
+                    format_func=lambda x: next((opt[1] for opt in fiscal_options if opt[0] == x), x),
+                    help="Année fiscale selon configuration admin"
+                )
+            else:
+                st.error("⚠️ Aucune année fiscale configurée par l'admin")
+                selected_by = st.text_input(
+                    "🗓️ Année Fiscale* (manuel)",
+                    value=get_default_fiscal_year(),
+                    help="Contactez l'admin pour configurer les années fiscales"
+                )
 
         # 4. Gestion des participants
         st.markdown("### 👥 Participants")
@@ -592,7 +600,7 @@ def admin_create_demande_page():
                 participants_libres=participants_libres,
                 auto_validate=create_and_process and auto_validate,
                 selected_participants=selected_participants,
-                fiscal_year=fiscal_year
+                by=selected_by
             )
         
         if success:

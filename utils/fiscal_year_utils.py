@@ -1,267 +1,265 @@
 """
-Utilitaires pour la conversion des années fiscales format BYXX
-LOGIQUE MÉTIER: Année fiscale = Mai N-1 à Avril N
-Exemple: BY25 = Mai 2024 à Avril 2025
+Utilitaires pour la validation et gestion des années fiscales
 """
+from typing import List, Tuple, Optional
+from models.dropdown_options import DropdownOptionsModel
 
-def byxx_to_year(byxx_value):
+def validate_fiscal_year(by_value: str) -> bool:
     """
-    Convertit le format BYXX en année de début de période fiscale
-    ATTENTION: BY25 = période Mai 2024 → Avril 2025, donc année de début = 2024
+    Valide qu'une année fiscale est autorisée selon les options configurées par l'admin
     
     Args:
-        byxx_value (str): Valeur au format BYXX (ex: 'BY25')
+        by_value: Valeur année fiscale format BYXX (ex: BY25)
         
     Returns:
-        int: Année de début de la période fiscale (ex: BY25 → 2024)
+        bool: True si l'année est autorisée, False sinon
     """
-    if not byxx_value or not isinstance(byxx_value, str):
-        return None
-    
-    # Si c'est déjà un nombre (rétrocompatibilité)
-    if byxx_value.isdigit():
-        return int(byxx_value)
-    
-    # Si c'est le format BYXX
-    if byxx_value.startswith('BY') and len(byxx_value) == 4:
-        try:
-            year_suffix = byxx_value[2:]  # Récupérer 'XX' de 'BYXX'
-            year_num = int(year_suffix)
+    try:
+        if not by_value or not isinstance(by_value, str):
+            return False
             
-            # LOGIQUE ANNÉE FISCALE: BYXX commence en mai de l'année (XX-1)
-            # BY25 = Mai 2024 → Avril 2025, donc on retourne 2024
-            # BY24 = Mai 2023 → Avril 2024, donc on retourne 2023
-            
-            if year_num <= 50:  # 00-50 → 2000-2050
-                fiscal_start_year = 2000 + year_num - 1
-            else:  # 51-99 → 1950-1999
-                fiscal_start_year = 1900 + year_num - 1
-                
-            return fiscal_start_year
-                
-        except ValueError:
-            return None
+        # Récupérer les années fiscales valides depuis la base directement
+        from models.database import db
+        
+        result = db.execute_query('''
+            SELECT COUNT(*) as count
+            FROM dropdown_options 
+            WHERE category = 'annee_fiscale' 
+            AND value = ? 
+            AND is_active = TRUE
+        ''', (by_value,), fetch='one')
+        
+        return result['count'] > 0 if result else False
+        
+    except Exception as e:
+        print(f"Erreur validation année fiscale: {e}")
+        return False
+
+def get_valid_fiscal_years() -> List[Tuple[str, str]]:
+    """
+    Récupère les années fiscales valides pour les dropdowns depuis la configuration admin
     
+    Returns:
+        List[Tuple[str, str]]: Liste de tuples (value, label) des années fiscales actives
+    """
+    try:
+        from models.database import db
+        
+        options = db.execute_query('''
+            SELECT value, label, order_index 
+            FROM dropdown_options 
+            WHERE category = 'annee_fiscale' AND is_active = TRUE
+            ORDER BY order_index ASC, value ASC
+        ''', fetch='all')
+        
+        if options:
+            # Convertir les Row objects en tuples
+            active_options = [(row['value'], row['label']) for row in options]
+            return active_options
+        else:
+            # Fallback avec années par défaut
+            from datetime import datetime
+            current_year = datetime.now().year
+            default_by = f"BY{str(current_year)[2:]}"
+            return [(default_by, f"{default_by} ({current_year})")]
+            
+    except Exception as e:
+        print(f"Erreur récupération années fiscales: {e}")
+        # Fallback avec années par défaut
+        from datetime import datetime
+        current_year = datetime.now().year
+        default_by = f"BY{str(current_year)[2:]}"
+        return [(default_by, f"{default_by} ({current_year})")]
+
+def get_default_fiscal_year() -> str:
+    """
+    Récupère l'année fiscale par défaut (première dans la liste ou année courante)
+    
+    Returns:
+        str: Code année fiscale par défaut (format BYXX)
+    """
+    try:
+        valid_years = get_valid_fiscal_years()
+        if valid_years:
+            return valid_years[0][0]  # Première année dans la liste
+        else:
+            # Fallback sur année courante
+            from datetime import datetime
+            current_year = datetime.now().year
+            return f"BY{str(current_year)[2:]}"
+    except Exception:
+        return "BY25"  # Fallback absolu
+
+def format_fiscal_year_label(by_value: str) -> str:
+    """
+    Formate un code année fiscale en libellé lisible
+    
+    Args:
+        by_value: Code année fiscale (ex: BY25)
+        
+    Returns:
+        str: Libellé formaté (ex: BY25 - simple, sans parenthèses)
+    """
+    try:
+        if not by_value or len(by_value) != 4 or not by_value.startswith('BY'):
+            return by_value
+        
+        # Format simple : BY25 (pas de parenthèses)
+        return by_value
+    except Exception:
+        return by_value
+
+def get_fiscal_year_from_date(date_evenement) -> Optional[str]:
+    """
+    FONCTION DÉPRÉCIÉE - Ne plus utiliser
+    Les années fiscales doivent être saisies manuellement depuis les dropdowns admin
+    
+    Cette fonction est conservée pour compatibilité mais retourne None
+    """
+    print("⚠️ ATTENTION: get_fiscal_year_from_date est déprécié. Utilisez les dropdowns admin.")
     return None
 
-def year_to_byxx(start_year):
+def validate_fiscal_year_format(by_value: str) -> bool:
     """
-    Convertit une année de début de période fiscale en format BYXX
-    Exemple: 2024 (début) → BY25 (car période 2024-2025)
+    Valide le format d'une année fiscale (BYXX)
     
     Args:
-        start_year (int): Année de début de période fiscale (ex: 2024)
+        by_value: Valeur à valider
         
     Returns:
-        str: Valeur au format BYXX (ex: 'BY25')
+        bool: True si le format est correct
     """
-    if not start_year or not isinstance(start_year, int):
-        return None
-    
-    # LOGIQUE ANNÉE FISCALE: 
-    # Si l'année fiscale commence en 2024, elle se termine en 2025
-    # donc BY25 (car on nomme par l'année de fin)
-    end_year = start_year + 1
-    year_suffix = end_year % 100
-    return f"BY{year_suffix:02d}"
-
-def get_fiscal_year_display(byxx_value):
-    """
-    Retourne l'affichage complet d'une année fiscale
-    Exemple: BY25 → "BY25 (Mai 2024 - Avril 2025)"
-    
-    Args:
-        byxx_value (str): Valeur au format BYXX
-        
-    Returns:
-        str: Affichage complet avec période
-    """
-    start_year = byxx_to_year(byxx_value)
-    if start_year:
-        end_year = start_year + 1
-        return f"{byxx_value} (Mai {start_year} - Avril {end_year})"
-    return str(byxx_value)
-
-def get_fiscal_year_from_date(date_obj):
-    """
-    Détermine l'année fiscale BYXX à partir d'une date
-    
-    Args:
-        date_obj: Date (datetime.date ou string)
-        
-    Returns:
-        str: Code BYXX correspondant (ex: 'BY25')
-    """
-    from datetime import datetime
-    
-    if isinstance(date_obj, str):
-        try:
-            date_obj = datetime.strptime(date_obj, '%Y-%m-%d').date()
-        except ValueError:
-            try:
-                date_obj = datetime.strptime(date_obj, '%d/%m/%Y').date()
-            except ValueError:
-                return None
-    
-    # L'année fiscale commence en mai
-    if date_obj.month >= 5:  # Mai à décembre
-        # On est dans l'année fiscale qui commence cette année
-        start_year = date_obj.year
-    else:  # Janvier à avril
-        # On est dans l'année fiscale qui a commencé l'année précédente
-        start_year = date_obj.year - 1
-    
-    return year_to_byxx(start_year)
-
-def validate_byxx_format(byxx_value):
-    """
-    Validation détaillée du format BYXX
-    
-    Args:
-        byxx_value (str): Valeur à valider
-        
-    Returns:
-        tuple: (is_valid, error_message)
-    """
-    if not byxx_value:
-        return False, "Valeur vide"
-    if not isinstance(byxx_value, str):
-        return False, "Format non-texte"
-    if not byxx_value.startswith('BY'):
-        return False, "Doit commencer par 'BY'"
-    if len(byxx_value) != 4:
-        return False, "Doit avoir 4 caractères (BYXX)"
-    if not byxx_value[2:].isdigit():
-        return False, "XX doit être numérique"
-    
-    # Vérifier que le format peut être converti (pas de restriction sur la plage pour le moment)
-    # La validation de plage métier peut être faite ailleurs si nécessaire
     try:
-        year_suffix = int(byxx_value[2:])
-        # Juste vérifier que c'est un nombre valide de 00 à 99
-        if year_suffix < 0 or year_suffix > 99:
-            return False, "XX doit être entre 00 et 99"
+        if not by_value or not isinstance(by_value, str):
+            return False
             
-    except ValueError:
-        return False, "Erreur conversion numérique"
-    
-    return True, None
+        # Format BYXX où XX sont 2 chiffres
+        if len(by_value) != 4:
+            return False
+            
+        if not by_value.startswith('BY'):
+            return False
+            
+        suffix = by_value[2:]
+        if not suffix.isdigit():
+            return False
+            
+        # Vérifier que l'année est dans une plage raisonnable (20xx)
+        year_num = int(suffix)
+        if year_num < 20 or year_num > 99:
+            return False
+            
+        return True
+    except Exception:
+        return False
 
-def validate_fiscal_year_format(value):
+def create_fiscal_year_option(year: int) -> Tuple[str, str]:
     """
-    Valide qu'une valeur est au bon format d'année fiscale avec validation métier
+    Crée une option d'année fiscale à partir d'une année
     
     Args:
-        value (str): Valeur à valider
+        year: Année (ex: 2025)
         
     Returns:
-        tuple: (is_valid, converted_year, error_message)
+        Tuple[str, str]: (value, label) pour l'option - format simple
     """
-    # Validation format d'abord
-    is_valid_format, format_error = validate_byxx_format(value)
-    if not is_valid_format:
-        return False, None, format_error
-    
-    # Tenter la conversion
-    start_year = byxx_to_year(value)
-    
-    if start_year is None:
-        return False, None, f"Erreur conversion: {value}"
-    
-    # Validation métier: plage d'années acceptable pour l'application
-    if start_year < 2000 or start_year > 2050:
-        return False, start_year, f"Année de début {start_year} hors plage métier acceptable (2000-2050)"
-    
-    return True, start_year, None
+    try:
+        if year < 2020 or year > 2099:
+            raise ValueError(f"Année {year} hors de la plage autorisée (2020-2099)")
+            
+        by_value = f"BY{str(year)[2:]}"
+        by_label = by_value  # Label simple : BY25
+        
+        return by_value, by_label
+    except Exception as e:
+        print(f"Erreur création option année fiscale: {e}")
+        return "", ""
 
-def get_current_fiscal_year():
+def byxx_to_year(by_value: str) -> Optional[int]:
     """
-    Retourne l'année fiscale actuelle basée sur la date d'aujourd'hui
-    
-    Returns:
-        str: Code BYXX de l'année fiscale actuelle
-    """
-    from datetime import date
-    return get_fiscal_year_from_date(date.today())
-
-def list_fiscal_years(start_year, end_year):
-    """
-    Génère une liste d'années fiscales entre deux années de début
+    Convertit un code année fiscale BYXX en année entière
     
     Args:
-        start_year (int): Année de début de la première période
-        end_year (int): Année de début de la dernière période
+        by_value: Code année fiscale (ex: BY25)
         
     Returns:
-        list: Liste de tuples (byxx_code, display_name, start_year, end_year)
+        Optional[int]: Année entière (ex: 2025) ou None si invalide
     """
-    fiscal_years = []
-    
-    for year in range(start_year, end_year + 1):
-        byxx_code = year_to_byxx(year)
-        display_name = get_fiscal_year_display(byxx_code)
-        fiscal_years.append((byxx_code, display_name, year, year + 1))
-    
-    return fiscal_years
+    try:
+        if not by_value or not isinstance(by_value, str):
+            return None
+            
+        if not validate_fiscal_year_format(by_value):
+            return None
+            
+        # Extraire les 2 derniers chiffres et convertir en année complète
+        year_suffix = by_value[2:]
+        year_int = int(year_suffix)
+        
+        # Assumer que 00-99 correspondent à 2000-2099
+        full_year = 2000 + year_int
+        
+        return full_year
+        
+    except Exception:
+        return None
 
-# Tests unitaires
-if __name__ == "__main__":
-    print("🧪 Tests des utilitaires d'années fiscales")
-    print("=" * 50)
-    print("📋 LOGIQUE: BY25 = Mai 2024 → Avril 2025")
-    print()
+def year_to_byxx(year: int) -> Optional[str]:
+    """
+    Convertit une année entière en code année fiscale BYXX
     
-    # Tests de conversion BYXX → année de début
-    print("🔄 Tests BYXX → Année de début:")
-    test_cases_byxx = [
-        ("BY25", 2024),  # BY25 = Mai 2024 → Avril 2025
-        ("BY24", 2023),  # BY24 = Mai 2023 → Avril 2024
-        ("BY26", 2025),  # BY26 = Mai 2025 → Avril 2026
-        ("BY20", 2019),  # BY20 = Mai 2019 → Avril 2020
-    ]
-    
-    for byxx, expected_start in test_cases_byxx:
-        result = byxx_to_year(byxx)
-        status = "✅" if result == expected_start else "❌"
-        print(f"   {status} {byxx} → {result} (attendu: {expected_start})")
-    
-    # Tests de conversion année de début → BYXX
-    print(f"\n🔄 Tests Année de début → BYXX:")
-    test_cases_year = [
-        (2024, "BY25"),  # 2024-2025 → BY25
-        (2023, "BY24"),  # 2023-2024 → BY24
-        (2025, "BY26"),  # 2025-2026 → BY26
-    ]
-    
-    for start_year, expected_byxx in test_cases_year:
-        result = year_to_byxx(start_year)
-        status = "✅" if result == expected_byxx else "❌"
-        print(f"   {status} {start_year} → {result} (attendu: {expected_byxx})")
-    
-    # Tests d'affichage
-    print(f"\n📋 Tests d'affichage:")
-    display_tests = ["BY25", "BY24", "BY26"]
-    for byxx in display_tests:
-        display = get_fiscal_year_display(byxx)
-        print(f"   • {byxx} → {display}")
-    
-    # Tests de dates
-    print(f"\n📅 Tests de dates:")
-    from datetime import date
-    date_tests = [
-        ("2024-06-15", "BY25"),  # Juin 2024 → BY25 (Mai 2024 - Avril 2025)
-        ("2024-03-15", "BY24"),  # Mars 2024 → BY24 (Mai 2023 - Avril 2024)
-        ("2024-05-01", "BY25"),  # Mai 2024 → BY25 (Mai 2024 - Avril 2025)
-        ("2025-04-30", "BY25"),  # Avril 2025 → BY25 (Mai 2024 - Avril 2025)
-    ]
-    
-    for date_str, expected_byxx in date_tests:
-        result = get_fiscal_year_from_date(date_str)
-        status = "✅" if result == expected_byxx else "❌"
-        print(f"   {status} {date_str} → {result} (attendu: {expected_byxx})")
-    
-    print(f"\n✅ Tests terminés")
-    print(f"\n📋 RAPPEL DE LA LOGIQUE:")
-    print(f"   BY25 = Période fiscale Mai 2024 → Avril 2025")
-    print(f"   BY24 = Période fiscale Mai 2023 → Avril 2024")
-    print(f"   BY26 = Période fiscale Mai 2025 → Avril 2026")
+    Args:
+        year: Année entière (ex: 2025)
+        
+    Returns:
+        Optional[str]: Code année fiscale (ex: BY25) ou None si invalide
+    """
+    try:
+        if year < 2000 or year > 2099:
+            return None
+            
+        year_suffix = str(year)[2:]  # 2025 → 25
+        by_code = f"BY{year_suffix}"
+        
+        return by_code
+        
+    except Exception:
+        return None
+def ensure_fiscal_years_exist():
+    """
+    S'assure que des années fiscales par défaut existent dans les dropdowns
+    Utilisé lors des migrations ou de l'initialisation
+    """
+    try:
+        from models.database import db
+        from datetime import datetime
+        
+        # Vérifier si des années fiscales existent déjà
+        existing_count = db.execute_query("""
+            SELECT COUNT(*) as count
+            FROM dropdown_options 
+            WHERE category = 'annee_fiscale' AND is_active = TRUE
+        """, fetch='one')
+        
+        if existing_count and existing_count['count'] > 0:
+            return True  # Des années existent déjà
+        
+        # Créer des années par défaut autour de l'année courante
+        current_year = datetime.now().year
+        years_to_create = range(current_year - 2, current_year + 5)  # 7 années
+        
+        for i, year in enumerate(years_to_create):
+            by_value, by_label = create_fiscal_year_option(year)
+            if by_value:
+                db.execute_query("""
+                    INSERT OR IGNORE INTO dropdown_options 
+                    (category, value, label, order_index, is_active)
+                    VALUES (?, ?, ?, ?, TRUE)
+                """, ('annee_fiscale', by_value, by_label, i + 1))
+        
+        print(f"✅ {len(years_to_create)} années fiscales par défaut créées")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erreur création années fiscales par défaut: {e}")
+        return False

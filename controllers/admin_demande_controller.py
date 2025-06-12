@@ -16,7 +16,8 @@ class AdminDemandeController:
                            groupe_groupement: str = "", region: str = "", agence: str = "",
                            client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
                            demandeur_participe: bool = True, participants_libres: str = "",
-                           auto_validate: bool = False, selected_participants: list = None) -> Tuple[bool, Optional[int]]:
+                           auto_validate: bool = False, selected_participants: list = None,
+                           by: str = "") -> Tuple[bool, Optional[int]]:
         """Create a demande as admin with DR selection and optional auto-validation"""
         try:
             # Créer la demande avec les spécificités admin
@@ -43,7 +44,8 @@ class AdminDemandeController:
                 nom_contact=nom_contact,
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres,
-                auto_validate=auto_validate
+                auto_validate=auto_validate,
+                by=by
             )
             
             # Ajouter les participants sélectionnés si la demande a été créée avec succès

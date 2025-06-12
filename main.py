@@ -279,6 +279,14 @@ def main():
     if 'initialized' not in st.session_state or not st.session_state.initialized:
         print("[DEBUG] Initializing application for the first time...")
         initialize_app()
+        
+        # Exécuter la migration des années fiscales
+        try:
+            from migrations.fiscal_year_unification import migrate_fiscal_year_unification
+            migrate_fiscal_year_unification()
+        except Exception as e:
+            print(f"Avertissement: Erreur migration années fiscales: {e}")
+        
         st.session_state.initialized = True
     
     # Affiche la barre latérale de navigation

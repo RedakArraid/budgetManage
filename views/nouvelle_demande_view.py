@@ -131,12 +131,27 @@ def _display_simplified_form(type_demande, user_info):
             date_evenement = st.date_input("📅 Date de l'événement*", value=date.today(), key="simple_date")
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="simple_urgence")
             
-            current_year = date.today().year
-            # Année fiscale au format BYXX par défaut
-            fiscal_year = st.text_input("🗓️ Année Fiscale*", 
-                                      value="BY25",
-                                      help="Format BYXX (ex: BY25)",
-                                      key="simple_fiscal")
+            # Année fiscale depuis les dropdowns admin
+            from utils.fiscal_year_utils import get_valid_fiscal_years, get_default_fiscal_year
+            fiscal_options = get_valid_fiscal_years()
+            
+            if fiscal_options:
+                selected_by = st.selectbox(
+                    "🗓️ Année Fiscale*",
+                    options=[opt[0] for opt in fiscal_options],
+                    format_func=lambda x: next((opt[1] for opt in fiscal_options if opt[0] == x), x),
+                    index=0,
+                    key="simple_fiscal",
+                    help="Année fiscale selon configuration admin"
+                )
+            else:
+                st.error("⚠️ Aucune année fiscale configurée par l'admin")
+                selected_by = st.text_input(
+                    "🗓️ Année Fiscale* (manuel)",
+                    value=get_default_fiscal_year(),
+                    help="Contactez l'admin pour configurer les années fiscales",
+                    key="simple_fiscal_manual"
+                )
         
         commentaires = st.text_area("💭 Commentaires", height=100, key="simple_comments")
         
@@ -179,7 +194,7 @@ def _display_simplified_form(type_demande, user_info):
                         demandeur_participe=True,
                         participants_libres="",
                         selected_participants=[],
-                        by=fiscal_year
+                        by=selected_by
                     )
                     
                     if success:
@@ -244,15 +259,26 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
             montant = st.number_input("💰 Montant (€)*", min_value=0.0, step=50.0, key="full_montant")
             urgence = st.selectbox("🚨 Urgence", options=['normale', 'urgent', 'critique'], key="full_urgence")
             
-            # Année fiscale comme les autres listes déroulantes
-            if annee_fiscale_options:
-                selected_by = st.selectbox("🗓️ Année Fiscale*", 
-                                           options=[opt[0] for opt in annee_fiscale_options],
-                                           format_func=lambda x: next((opt[1] for opt in annee_fiscale_options if opt[0] == x), x),
-                                           key="full_by")
+            # Année fiscale depuis les dropdowns admin (unifié)
+            from utils.fiscal_year_utils import get_valid_fiscal_years, get_default_fiscal_year
+            fiscal_options = get_valid_fiscal_years()
+            
+            if fiscal_options:
+                selected_by = st.selectbox(
+                    "🗓️ Année Fiscale*", 
+                    options=[opt[0] for opt in fiscal_options],
+                    format_func=lambda x: next((opt[1] for opt in fiscal_options if opt[0] == x), x),
+                    key="full_by",
+                    help="Année fiscale selon configuration admin"
+                )
             else:
-                st.error("⚠️ Aucune année fiscale configurée. Contactez l'administrateur.")
-                selected_by = None
+                st.error("⚠️ Aucune année fiscale configurée par l'admin")
+                selected_by = st.text_input(
+                    "🗓️ Année Fiscale* (manuel)",
+                    value=get_default_fiscal_year(),
+                    help="Contactez l'admin pour configurer les années fiscales",
+                    key="full_by_manual"
+                )
 
         # 3. Participants
         st.markdown("### 👥 Participants")
@@ -349,9 +375,8 @@ def _display_full_form(type_demande, user_info, budget_options, categorie_option
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres or "",
                 selected_participants=selected_participants,
-                # Passing the selected value from the selectbox
-                by=selected_by,
-                # fiscal_year=fiscal_year # Remove this line as it's no longer used
+                # Année fiscale unifiée
+                by=selected_by
             )
         
         if success:

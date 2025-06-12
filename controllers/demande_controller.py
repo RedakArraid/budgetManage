@@ -19,8 +19,7 @@ class DemandeController:
                        groupe_groupement: str = "", region: str = "", agence: str = "",
                        client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
                        demandeur_participe: bool = True, participants_libres: str = "",
-                       fiscal_year: Optional[int] = None, by: Optional[str] = None,
-                       selected_participants: Optional[List[int]] = None) -> tuple[bool, Optional[int]]:
+                       by: str = "", selected_participants: Optional[List[int]] = None) -> tuple[bool, Optional[int]]:
         """Create a new demande with participant support (normal workflow)"""
         try:
             from utils.spinner_utils import OperationFeedback
@@ -33,28 +32,19 @@ class DemandeController:
                 except Exception:
                     cy = None # Set cy to None if date parsing fails
 
-                # Determine fy (integer fiscal year) and final by_string (BYXX)
-                final_fy = None
-                final_by_string = by # Prioritize the 'by' string provided by the view
-
-                if final_by_string and final_by_string.startswith('BY') and len(final_by_string) == 4:
-                    try:
-                        # Derive fy integer from the BYXX string
-                        final_fy = 2000 + int(final_by_string[2:]) # Assuming BYXX format means 20XX
-                    except ValueError:
-                        final_fy = None # Invalid BY format
-                elif fiscal_year is not None:
-                     # If 'by' was not provided or invalid, use the integer fiscal_year if available
-                     final_fy = fiscal_year
-                     # Generate by_string from fiscal_year if needed (though view should provide it now)
-                     if final_fy >= 1000: # Simple check for valid year
-                          final_by_string = f"BY{str(final_fy)[2:]}"
-                     else:
-                          final_by_string = None
-                # If neither 'by' nor 'fiscal_year' is valid/provided, final_fy and final_by_string remain None
+                # Valider l'année fiscale fournie
+                from utils.fiscal_year_utils import validate_fiscal_year, get_default_fiscal_year
+                
+                if by and validate_fiscal_year(by):
+                    final_by_string = by
+                else:
+                    if by:
+                        print(f"⚠️ Année fiscale non autorisée '{by}', utilisation de l'année par défaut")
+                    final_by_string = get_default_fiscal_year()
+                
+                print(f"[DEBUG] Création demande avec by={final_by_string}, cy={cy}")
 
                 # Create the demande in the database
-                # Pass the determined cy, final_by_string, and final_fy to the model
                 success, demande_id = DemandeModel.create_demande(
                     user_id=user_id,
                     type_demande=type_demande,
@@ -78,8 +68,7 @@ class DemandeController:
                     demandeur_participe=demandeur_participe,
                     participants_libres=participants_libres or "",
                     cy=cy,  # Pass calculated cy
-                    by=final_by_string,  # Pass determined by string
-                    fy=final_fy,  # Pass determined fy integer
+                    by=final_by_string,  # Pass validated by string
                 )
             
             if success and demande_id:
@@ -140,9 +129,9 @@ class DemandeController:
     
     @staticmethod
     def get_demandes_for_user(user_id: int, role: str, search_query: str = "", 
-                             status_filter: str = "tous", fiscal_year: Optional[int] = None) -> pd.DataFrame:
-        """Récupérer les demandes pour un utilisateur selon son rôle"""
-        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter, fiscal_year)
+                             status_filter: str = "tous", fiscal_year_filter: Optional[str] = None) -> pd.DataFrame:
+        """Récupérer les demandes pour un utilisateur selon son rôle avec filtre année fiscale string"""
+        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter, fiscal_year_filter)
     
     @staticmethod
     def get_demande_by_id(demande_id: int) -> Optional[Dict[str, Any]]:
@@ -199,9 +188,9 @@ class DemandeController:
         return success, message
     
     @staticmethod
-    def get_dashboard_stats(user_id: int, role: str, fiscal_year: Optional[int] = None) -> Dict[str, Any]:
-        """Récupérer les statistiques pour le tableau de bord"""
-        return DemandeModel.get_dashboard_stats(user_id, role, fiscal_year)
+    def get_dashboard_stats(user_id: int, role: str, fiscal_year_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Récupérer les statistiques pour le tableau de bord avec filtre année fiscale string"""
+        return DemandeModel.get_dashboard_stats(user_id, role, fiscal_year_filter)
     
     @staticmethod
     def get_analytics_data(user_id: int, role: str) -> Dict[str, Any]:

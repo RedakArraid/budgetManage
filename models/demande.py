@@ -96,14 +96,24 @@ class DemandeModel:
                                groupe_groupement: str = "", region: str = "", agence: str = "",
                                client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
                                demandeur_participe: bool = True, participants_libres: str = "",
-                               auto_validate: bool = False) -> tuple[bool, Optional[int]]:
-        """Create a demande as admin with DR selection and optional auto-validation"""
+                               auto_validate: bool = False, by: str = "") -> tuple[bool, Optional[int]]:
+        """Create a demande as admin with DR selection and optional auto-validation - Version avec année fiscale unifiée"""
         try:
             from utils.spinner_utils import OperationFeedback
             
             with OperationFeedback.create_demande():
+                # Valider et utiliser l'année fiscale fournie
+                from utils.fiscal_year_utils import validate_fiscal_year, get_default_fiscal_year
+                
+                if by and validate_fiscal_year(by):
+                    by_string = by
+                else:
+                    if by:
+                        print(f"⚠️ Année fiscale non autorisée '{by}', utilisation de l'année par défaut")
+                    by_string = get_default_fiscal_year()
+                
                 # Calculer cy, by et fiscal_year à partir de la date d'événement
-                cy, by, fiscal_year_calc = calculate_cy_by(date_evenement)
+                cy, _, _ = calculate_cy_by(date_evenement)  # On utilise seulement cy
                 
                 # Si DR sélectionné, utiliser son ID comme user_id pour simuler qu'il a créé la demande
                 # Sinon utiliser l'admin comme créateur
@@ -114,12 +124,12 @@ class DemandeModel:
                     INSERT INTO demandes (user_id, type_demande, nom_manifestation, client, date_evenement, 
                                         lieu, montant, participants, commentaires, urgence, budget, categorie, 
                                         typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fiscal_year)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (creator_id, type_demande, nom_manifestation, client, date_evenement, 
                       lieu, montant, participants, commentaires, urgence, budget, categorie, 
                       typologie_client, groupe_groupement, region, agence, client_enseigne, 
-                      mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by, fiscal_year_calc), 
+                      mail_contact, nom_contact, demandeur_participe, participants_libres, cy, by_string), 
                       fetch='lastrowid')
                 
                 # Si auto-validation demandée, valider directement avec l'admin comme valideur
@@ -190,11 +200,10 @@ class DemandeModel:
         nom_contact: str = "",
         demandeur_participe: bool = True,
         participants_libres: str = "",
-        fy: Optional[int] = None,
-        by: Optional[str] = None,
+        by: str = "",
         cy: Optional[int] = None,
     ) -> tuple[bool, Optional[int]]:
-        """Create a new demande with participant support (normal workflow)"""
+        """Create a new demande with participant support (normal workflow) - Version avec année fiscale unifiée"""
         try:
             from utils.spinner_utils import OperationFeedback
 
@@ -208,10 +217,15 @@ class DemandeModel:
                     except Exception:
                         calendar_year = None  # Set cy to None if date parsing fails
 
-                # Calculate 'by' string (BYNN) from the fiscal_year integer provided by the user (fy)
-                by_string = by # Use provided by if available
-                if by_string is None and fy is not None and fy >= 1000:
-                     by_string = f"BY{str(fy)[2:]}" # Generate BYNN format from fy
+                # Valider et utiliser l'année fiscale fournie
+                from utils.fiscal_year_utils import validate_fiscal_year, get_default_fiscal_year
+                
+                if by and validate_fiscal_year(by):
+                    by_string = by
+                else:
+                    if by:
+                        print(f"⚠️ Année fiscale non autorisée '{by}', utilisation de l'année par défaut")
+                    by_string = get_default_fiscal_year()
 
                 # Insert the demande into the database
                 demande_id = db.execute_query(
@@ -221,14 +235,14 @@ class DemandeModel:
                         lieu, montant, participants, commentaires, urgence, budget, categorie,
                         typologie_client, groupe_groupement, region, agence, client_enseigne,
                         mail_contact, nom_contact, demandeur_participe, participants_libres,
-                        cy, by, fiscal_year
+                        cy, by
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (user_id, type_demande, nom_manifestation, client, date_evenement,
                       lieu, montant, participants, commentaires, urgence, budget, categorie,
                       typologie_client, groupe_groupement, region, agence, client_enseigne,
                       mail_contact, nom_contact, demandeur_participe, participants_libres,
-                      calendar_year, by_string, fy), # Use calculated/provided values
+                      calendar_year, by_string), # Use calculated cy and validated by
                     fetch='lastrowid'
                 )
 
@@ -315,8 +329,8 @@ class DemandeModel:
     
     @staticmethod
     def get_demandes_for_user(user_id: int, role: str, search_query: str = "", 
-                             status_filter: str = "tous", fiscal_year: Optional[int] = None) -> pd.DataFrame:
-        """Get demandes based on user role and filters, including demandes where user is participant"""
+                             status_filter: str = "tous", fiscal_year_filter: Optional[str] = None) -> pd.DataFrame:
+        """Get demandes based on user role and filters avec filtre année fiscale string"""
         try:
             with db.get_connection() as conn:
                 # Build query based on role
@@ -386,10 +400,10 @@ class DemandeModel:
                 # Add filters
                 where_conditions = []
 
-                # Add fiscal_year filter
-                if fiscal_year is not None:
-                    where_conditions.append("fiscal_year = ?")
-                    params.append(fiscal_year)
+                # Add fiscal_year filter (string-based)
+                if fiscal_year_filter:
+                    where_conditions.append("by = ?")
+                    params.append(fiscal_year_filter)
 
                 if search_query:
                     where_conditions.append("(nom_manifestation LIKE ? OR client LIKE ? OR lieu LIKE ?)")
@@ -573,8 +587,8 @@ class DemandeModel:
             return False, f"Erreur: {e}"
     
     @staticmethod
-    def get_dashboard_stats(user_id: int, role: str, fiscal_year: Optional[int] = None) -> Dict[str, Any]:
-        """Récupérer les statistiques pour le tableau de bord, filtrées par année fiscale"""
+    def get_dashboard_stats(user_id: int, role: str, fiscal_year_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Récupérer les statistiques pour le tableau de bord avec filtre année fiscale string"""
         try:
             # Base query to get counts for different statuses
             base_query = '''
@@ -603,10 +617,10 @@ class DemandeModel:
                  role_conditions.append("d.status NOT IN ('brouillon', 'rejetee')")
             # Admin sees all (no role condition needed)
 
-            # Add fiscal_year filtering
-            if fiscal_year is not None:
-                role_conditions.append("d.fiscal_year = ?")
-                params.append(fiscal_year)
+            # Add fiscal_year filtering (string-based)
+            if fiscal_year_filter:
+                role_conditions.append("d.by = ?")
+                params.append(fiscal_year_filter)
 
             # Combine conditions
             if role_conditions:

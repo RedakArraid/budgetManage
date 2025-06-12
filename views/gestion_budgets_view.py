@@ -276,9 +276,15 @@ def _display_copy_previous_year(fiscal_year, annee_fiscale_options):
         # Sélection année source
         # Filtrer les années précédentes en convertissant le format BYXX
         source_years = []
+        current_year_num = byxx_to_year(fiscal_year)
+        
+        if current_year_num is None:
+            st.error(f"❌ Format d'année fiscale invalide: {fiscal_year}")
+            return
+        
         for opt in annee_fiscale_options:
             source_year_num = byxx_to_year(opt[0])
-            if source_year_num and source_year_num < fiscal_year:
+            if source_year_num and source_year_num < current_year_num:
                 source_years.append(opt)
         
         if not source_years:
@@ -291,11 +297,8 @@ def _display_copy_previous_year(fiscal_year, annee_fiscale_options):
             format_func=lambda x: next((opt[1] for opt in source_years if opt[0] == x), x),
             help="Année dont copier les budgets"
         )
-        # Convertir l'année source sélectionnée
-        source_year = byxx_to_year(source_year_str)
-        if source_year is None:
-            st.error(f"❌ Format d'année source invalide: {source_year_str}")
-            return
+        # Utiliser directement la chaîne BYXX pour la source
+        source_year = source_year_str
         
         # Pourcentage d'augmentation
         increase_pct = st.number_input(
