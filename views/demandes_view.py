@@ -48,15 +48,15 @@ def demandes_page():
         montant_filter = st.session_state.get('demandes_montant_filter', 'tous')
         fiscal_year_filter = st.session_state.get('demandes_fiscal_year_filter', 'Tous')
         
-        # Convert fiscal_year_filter to int or None
-        fiscal_year_param = int(fiscal_year_filter) if fiscal_year_filter != 'Tous' else None
+        # Convert fiscal_year_filter to string or None
+        fiscal_year_param = fiscal_year_filter if fiscal_year_filter != 'Tous' else None
 
         demandes = DemandeController.get_demandes_for_user(
             user_id=AuthController.get_current_user_id(),
             role=user_info['role'],
             search_query=search_query,
             status_filter=status_filter if status_filter != 'tous' else '',
-            fiscal_year=fiscal_year_param
+            fiscal_year_filter=fiscal_year_param
         )
         
         if not demandes.empty:
@@ -129,8 +129,8 @@ def _display_filters():
         st.session_state.demandes_montant_filter = 'tous'
     # Initialize fiscal year filter
     current_year = datetime.now().year
-    # Generate a list of fiscal years (e.g., past 5 years, current year, next 5 years)
-    fiscal_years_options = ['Tous'] + list(range(current_year - 5, current_year + 6))
+    # Generate a list of fiscal years in BYXX format (e.g., BY20, BY21, BY22, etc.)
+    fiscal_years_options = ['Tous'] + [f"BY{str(year)[2:]}" for year in range(current_year - 5, current_year + 6)]
     if 'demandes_fiscal_year_filter' not in st.session_state:
         st.session_state.demandes_fiscal_year_filter = 'Tous'
 

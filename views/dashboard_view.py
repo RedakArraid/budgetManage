@@ -216,7 +216,7 @@ def _display_recent_demandes(user_id, role):
     # Keep the main subheader for the section (already in dashboard_page)
     # Removed the duplicate st.subheader("📋 Demandes Récentes") from here
     
-    demandes = DemandeController.get_demandes_for_user(user_id, role)
+    demandes = DemandeController.get_demandes_for_user(user_id, role, status_filter='tous')
     
     if not demandes.empty:
         # Show only 5 most recent

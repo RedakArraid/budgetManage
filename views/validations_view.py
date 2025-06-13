@@ -57,8 +57,8 @@ def _get_demandes_validation(user_info):
     
     # Get fiscal year filter from session state
     fiscal_year_filter = st.session_state.get('validation_fiscal_year_filter', 'Tous')
-    # Convert to int or None for the controller
-    fiscal_year_param = int(fiscal_year_filter) if fiscal_year_filter != 'Tous' else None
+    # Convert to string or None for the controller - fiscal_year_filter expects string format like 'BY25'
+    fiscal_year_param = fiscal_year_filter if fiscal_year_filter != 'Tous' else None
     
     if role == 'dr':
         # DR voit les demandes en attente DR de son équipe
@@ -66,7 +66,7 @@ def _get_demandes_validation(user_info):
             user_id,
             role,
             status_filter='en_attente_dr',
-            fiscal_year=fiscal_year_param
+            fiscal_year_filter=fiscal_year_param
         )
     elif role in ['dr_financier', 'dg']:
         # Financiers voient toutes les demandes en attente financière
@@ -74,7 +74,7 @@ def _get_demandes_validation(user_info):
             user_id, 
             role, 
             status_filter='en_attente_financier',
-            fiscal_year=fiscal_year_param
+            fiscal_year_filter=fiscal_year_param
         )
     
     return pd.DataFrame()
@@ -116,8 +116,8 @@ def _display_validation_filters():
         st.session_state.validation_type_filter = 'tous'
     # Initialize fiscal year filter
     current_year = datetime.now().year
-    # Generate a list of fiscal years (e.g., past 5 years, current year, next 5 years)
-    fiscal_years_options = ['Tous'] + list(range(current_year - 5, current_year + 6))
+    # Generate a list of fiscal years in BYXX format (e.g., BY20, BY21, BY22, etc.)
+    fiscal_years_options = ['Tous'] + [f"BY{str(year)[2:]}" for year in range(current_year - 5, current_year + 6)]
     if 'validation_fiscal_year_filter' not in st.session_state:
         st.session_state.validation_fiscal_year_filter = 'Tous'
 
@@ -574,7 +574,8 @@ def _display_recent_validations(user_info):
     # Utiliser get_demandes_for_user et filtrer par statuts validés ou rejetés
     all_demandes = DemandeController.get_demandes_for_user(
         AuthController.get_current_user_id(),
-        user_info['role']
+        user_info['role'],
+        status_filter='tous'
     )
 
     if not all_demandes.empty:

@@ -28,7 +28,8 @@ def analytics_page():
         # Récupérer les données selon le rôle
         demandes = DemandeController.get_demandes_for_user(
             AuthController.get_current_user_id(), 
-            user_info['role']
+            user_info['role'],
+            status_filter='tous'
         )
         
         original_count = len(demandes)
@@ -47,7 +48,8 @@ def analytics_page():
         
         demandes = DemandeController.get_demandes_for_user(
             AuthController.get_current_user_id(), 
-            user_info['role']
+            user_info['role'],
+            status_filter='tous'
         )
         
         if not demandes.empty:
