@@ -576,10 +576,10 @@ def _display_demande_validation_actions(row, user_info):
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
-                valider_button = st.form_submit_button("✅ Valider", use_container_width=True, type="primary", key=f"dr_validate_submit_{demande_id}")
+                valider_button = st.form_submit_button("✅ Valider", use_container_width=True, type="primary")
                 
             with col_btn2:
-                rejeter_button = st.form_submit_button("❌ Rejeter", use_container_width=True, key=f"dr_reject_submit_{demande_id}")
+                rejeter_button = st.form_submit_button("❌ Rejeter", use_container_width=True)
             
             # Logique de traitement après soumission du formulaire
             if valider_button:
@@ -634,10 +634,10 @@ def _display_demande_validation_actions(row, user_info):
                 col_btn1, col_btn2 = st.columns(2)
                 
                 with col_btn1:
-                    valider_button = st.form_submit_button(f"✅ Valider ({role})", use_container_width=True, type="primary", key=f"fin_validate_submit_{demande_id}")
+                    valider_button = st.form_submit_button(f"✅ Valider ({role})", use_container_width=True, type="primary")
 
                 with col_btn2:
-                    rejeter_button = st.form_submit_button(f"❌ Rejeter ({role})", use_container_width=True, key=f"fin_reject_submit_{demande_id}")
+                    rejeter_button = st.form_submit_button(f"❌ Rejeter ({role})", use_container_width=True)
                     
                 # Logique de traitement après soumission du formulaire
                 if valider_button:

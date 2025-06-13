@@ -11,7 +11,7 @@ from config.settings import WORKFLOW_CONFIG
 
 def calculate_cy_by(date_evenement):
     """
-    Calculer cy (année civile), by (année fiscale string YY/YY), et fiscal_year (année fiscale int)
+    Calculer cy (année civile) et by (année fiscale string)
     à partir de la date d'événement. L'année fiscale commence en mai.
     """
     if not date_evenement:
@@ -44,8 +44,8 @@ def calculate_cy_by(date_evenement):
     # Format by as BYYY (e.g., BY24)
     by_string = f"BY{str(fiscal_year_start_year)[2:]}"
     
-    # Return calendar year, BY string, and fiscal year start year (integer)
-    return cy, by_string, fiscal_year_start_year
+    # Return calendar year et BY string
+    return cy, by_string  # Simplifié: plus besoin de fiscal_year_start_year
 
 @dataclass
 class Demande:
@@ -80,7 +80,7 @@ class Demande:
     commentaire_dg: str = ""
     cy: Optional[int] = None  # Année civile
     by: Optional[str] = None  # Année fiscale (string YY/YY)
-    fy: Optional[int] = None # Année fiscale (int YYYY), la colonne se nomme fy dans la DB
+    # fy: Optional[int] = None  # ← SUPPRIMÉ: utiliser by uniquement
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -486,7 +486,7 @@ class DemandeModel:
                     'status', 'valideur_dr_id', 'valideur_financier_id', 'date_validation_dr',
                     'date_validation_financier', 'commentaire_dr', 'commentaire_financier',
                     'valideur_dg_id', 'date_validation_dg', 'commentaire_dg',
-                    'demandeur_participe', 'participants_libres', 'cy', 'by', 'fiscal_year'
+                    'demandeur_participe', 'participants_libres', 'cy', 'by'
                 ]
                 
                 # Si la date d'événement change, recalculer cy et by
@@ -497,7 +497,7 @@ class DemandeModel:
                          kwargs['cy'] = date_obj.year
                     except Exception:
                          kwargs['cy'] = None # Set cy to None if date parsing fails
-                    # Note: 'by' and 'fy' are NOT recalculated here based on date_evenement
+                    # Note: 'by' est maintenant géré manuellement via les dropdowns admin
                     # as they are now manually input. They would only be updated if explicitly passed in kwargs.
                 
                 for key, value in kwargs.items():

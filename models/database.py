@@ -191,8 +191,8 @@ class Database:
                     )
                 ''')
                 
-                # Add fiscal_year column if it doesn't exist
-                self.add_column_if_not_exists('demandes', 'fiscal_year', "INTEGER NOT NULL DEFAULT (CAST(strftime('%Y', CURRENT_TIMESTAMP) AS INTEGER))")
+            # fiscal_year column migration désactivée - utiliser 'by' uniquement
+            # self.add_column_if_not_exists('demandes', 'fiscal_year', "INTEGER NOT NULL DEFAULT (CAST(strftime('%Y', CURRENT_TIMESTAMP) AS INTEGER))")  # ← DÉSACTIVÉ: fiscal_year obsolète, utiliser 'by'
                 
                 # TABLE DEMANDE_VALIDATIONS - MANQUANTE CRÉÉE
                 cursor.execute('''
@@ -297,7 +297,7 @@ class Database:
             self.add_column_if_not_exists('demandes', 'participants_libres', 'TEXT DEFAULT ""')
             self.add_column_if_not_exists('demandes', 'cy', 'INTEGER')
             self.add_column_if_not_exists('demandes', 'by', 'TEXT')
-            self.add_column_if_not_exists('demandes', 'fiscal_year', 'INTEGER')
+            # self.add_column_if_not_exists('demandes', 'fiscal_year', 'INTEGER')  # ← DÉSACTIVÉ: fiscal_year obsolète, utiliser 'by'
             self.add_column_if_not_exists('demandes', 'valideur_dg_id', 'INTEGER')
             self.add_column_if_not_exists('demandes', 'date_validation_dg', 'TIMESTAMP')
             self.add_column_if_not_exists('demandes', 'commentaire_dg', 'TEXT')
