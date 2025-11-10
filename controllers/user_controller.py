@@ -1,5 +1,5 @@
 """
-User controller for CRUD operations - VERSION CORRIGÉE
+User controller for CRUD operations
 """
 import streamlit as st
 from typing import Optional, Dict, Any, List, Tuple
@@ -16,7 +16,7 @@ class UserController:
     
     @staticmethod
     def create_user(email: str, nom: str, prenom: str, role: str, region: str = None, 
-                   directeur_id: int = None, temp_password: str = None) -> Tuple[bool, str]:
+                   directeur_id: int = None, budget_alloue: float = 0.0) -> Tuple[bool, str]:
         """Create a new user"""
         try:
             # Validation des champs
@@ -49,8 +49,7 @@ class UserController:
                 region = dr_info['region']  # Région automatique du DR
             
             # Générer un mot de passe temporaire
-            if temp_password is None:
-                temp_password = "TempPass123!"  # À changer à la première connexion
+            temp_password = "TempPass123!"  # À changer à la première connexion
             
             # Créer l'utilisateur
             success, user_id = UserModel.create_user(
@@ -60,6 +59,7 @@ class UserController:
                 role=role,
                 region=region,
                 directeur_id=directeur_id,
+                budget_alloue=budget_alloue,
                 temp_password=temp_password
             )
             
@@ -74,92 +74,6 @@ class UserController:
                 return True, f"Utilisateur créé avec succès. Mot de passe temporaire: {temp_password}"
             else:
                 return False, "Erreur lors de la création de l'utilisateur"
-                
-        except Exception as e:
-            return False, f"Erreur: {str(e)}"
-    
-    @staticmethod
-    def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
-        """Get user by ID"""
-        try:
-            return UserModel.get_user_by_id(user_id)
-        except Exception as e:
-            st.error(f"Erreur lors de la récupération de l'utilisateur: {e}")
-            return None
-    
-    @staticmethod
-    def change_password(user_id: int, new_password: str) -> bool:
-        """Change user password"""
-        try:
-            from utils.security import hash_password
-            password_hash = hash_password(new_password)
-            
-            success = UserModel.update_user(user_id, password_hash=password_hash)
-            
-            if success:
-                # Log de l'activité
-                user_info = UserModel.get_user_by_id(user_id)
-                ActivityLogModel.log_activity(
-                    user_id, None, 'change_password',
-                    f"Changement de mot de passe pour {user_info['email'] if user_info else user_id}"
-                )
-                
-                return True
-            else:
-                return False
-                
-        except Exception as e:
-            return False
-    
-    @staticmethod
-    def update_user_profile(user_id: int, prenom: str, nom: str, region: str = None) -> bool:
-        """Update user profile information"""
-        try:
-            # Préparer les données à mettre à jour
-            update_data = {
-                'prenom': prenom,
-                'nom': nom
-            }
-            
-            if region:
-                update_data['region'] = region
-            
-            success = UserModel.update_user(user_id, **update_data)
-            
-            if success:
-                # Log de l'activité
-                user_info = UserModel.get_user_by_id(user_id)
-                ActivityLogModel.log_activity(
-                    user_id, None, 'update_profile',
-                    f"Mise à jour du profil pour {user_info['email'] if user_info else user_id}"
-                )
-                
-                return True
-            else:
-                return False
-                
-        except Exception as e:
-            return False
-    
-    @staticmethod
-    def reset_password(user_id: int) -> Tuple[bool, str]:
-        """Reset user password"""
-        try:
-            new_password = "NewPass123!"
-            success = UserModel.reset_password(user_id, new_password)
-            
-            if success:
-                # Log de l'activité
-                current_user_id = AuthController.get_current_user_id()
-                user_info = UserModel.get_user_by_id(user_id)
-                ActivityLogModel.log_activity(
-                    current_user_id, None, 'reset_password',
-                    f"Réinitialisation mot de passe {user_info['email'] if user_info else user_id}"
-                )
-                
-                return True, f"Mot de passe réinitialisé: {new_password}"
-            else:
-                return False, "Erreur lors de la réinitialisation"
                 
         except Exception as e:
             return False, f"Erreur: {str(e)}"
@@ -198,9 +112,48 @@ class UserController:
             return pd.DataFrame()
     
     @staticmethod
+    def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+        """Get user by ID"""
+        try:
+            return UserModel.get_user_by_id(user_id)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération de l'utilisateur: {e}")
+            return None
+    
+    @staticmethod
     def update_user(user_id: int, **kwargs) -> Tuple[bool, str]:
         """Update user information"""
         try:
+            # Validation des champs si fournis
+            if 'email' in kwargs and not validate_email(kwargs['email']):
+                return False, "Format d'email invalide"
+            
+            if 'nom' in kwargs and not validate_text_field(kwargs['nom'], min_length=2):
+                return False, "Le nom doit contenir au moins 2 caractères"
+            
+            if 'prenom' in kwargs and not validate_text_field(kwargs['prenom'], min_length=2):
+                return False, "Le prénom doit contenir au moins 2 caractères"
+            
+            if 'role' in kwargs and kwargs['role'] not in role_config.roles:
+                return False, "Rôle invalide"
+            
+            # Règles spécifiques
+            if 'role' in kwargs:
+                role = kwargs['role']
+                if role == 'dr' and 'region' in kwargs and not kwargs['region']:
+                    return False, "Une région doit être sélectionnée pour un DR"
+                
+                if role == 'tc' and 'directeur_id' in kwargs and not kwargs['directeur_id']:
+                    return False, "Un directeur doit être sélectionné pour un TC"
+                
+                # Si changement vers TC, vérifier et ajuster la région
+                if role == 'tc' and 'directeur_id' in kwargs:
+                    dr_info = UserModel.get_user_by_id(kwargs['directeur_id'])
+                    if not dr_info or dr_info['role'] != 'dr':
+                        return False, "Directeur invalide"
+                    kwargs['region'] = dr_info['region']  # Région automatique
+            
+            # Mise à jour
             success = UserModel.update_user(user_id, **kwargs)
             
             if success:
@@ -268,6 +221,29 @@ class UserController:
             return False, f"Erreur: {str(e)}"
     
     @staticmethod
+    def reset_password(user_id: int) -> Tuple[bool, str]:
+        """Reset user password"""
+        try:
+            new_password = "NewPass123!"
+            success = UserModel.reset_password(user_id, new_password)
+            
+            if success:
+                # Log de l'activité
+                current_user_id = AuthController.get_current_user_id()
+                user_info = UserModel.get_user_by_id(user_id)
+                ActivityLogModel.log_activity(
+                    current_user_id, None, 'reset_password',
+                    f"Réinitialisation mot de passe {user_info['email'] if user_info else user_id}"
+                )
+                
+                return True, f"Mot de passe réinitialisé: {new_password}"
+            else:
+                return False, "Erreur lors de la réinitialisation"
+                
+        except Exception as e:
+            return False, f"Erreur: {str(e)}"
+    
+    @staticmethod
     def get_directors() -> List[Dict[str, Any]]:
         """Get all directors (DR) for TC assignment"""
         try:
@@ -314,6 +290,23 @@ class UserController:
             return {}
     
     @staticmethod
+    def permanently_delete_user(user_id: int) -> Tuple[bool, str]:
+        """Permanently delete a user and all related data (ADMIN ONLY)"""
+        try:
+            return UserModel.permanently_delete_user(user_id)
+        except Exception as e:
+            return False, f"Erreur: {str(e)}"
+    
+    @staticmethod
+    def get_user_dependencies(user_id: int) -> Dict[str, int]:
+        """Get user dependencies before deletion"""
+        try:
+            return UserModel.get_user_dependencies(user_id)
+        except Exception as e:
+            st.error(f"Erreur lors de la récupération des dépendances: {e}")
+            return {}
+    
+    @staticmethod
     def export_users() -> pd.DataFrame:
         """Export users data for Excel/CSV"""
         try:
@@ -324,12 +317,13 @@ class UserController:
             
             # Sélectionner et renommer les colonnes pour l'export
             export_df = users_df[['id', 'email', 'nom', 'prenom', 'role', 'region', 
-                                'is_active', 'created_at']].copy()
+                                'budget_alloue', 'is_active', 'created_at']].copy()
             
             export_df.columns = ['ID', 'Email', 'Nom', 'Prénom', 'Rôle', 'Région', 
-                               'Actif', 'Date Création']
+                               'Budget Alloué', 'Actif', 'Date Création']
             
             # Formater les données
+            export_df['Budget Alloué'] = export_df['Budget Alloué'].apply(lambda x: f"{x:,.2f}€")
             export_df['Actif'] = export_df['Actif'].apply(lambda x: 'Oui' if x else 'Non')
             export_df['Date Création'] = pd.to_datetime(export_df['Date Création']).dt.strftime('%d/%m/%Y')
             
@@ -342,125 +336,3 @@ class UserController:
         except Exception as e:
             st.error(f"Erreur lors de l'export: {e}")
             return pd.DataFrame()
-
-    @staticmethod
-    def delete_user_complete(user_id: int) -> Tuple[bool, str]:
-        """Permanently delete a user and associated data"""
-        try:
-            # Optionnel: Ajouter des vérifications ici si nécessaire (ex: ne pas supprimer le dernier admin)
-            
-            success, message = UserModel.permanently_delete_user(user_id)
-            
-            if success:
-                # Log de l'activité
-                current_user_id = AuthController.get_current_user_id()
-                ActivityLogModel.log_activity(
-                    current_user_id, user_id, 'permanently_delete_user',
-                    f"Suppression définitive de l'utilisateur ID: {user_id}"
-                )
-                return True, "Utilisateur supprimé définitivement avec succès."
-            else:
-                return False, message
-
-        except Exception as e:
-            return False, f"Erreur lors de la suppression définitive de l'utilisateur: {str(e)}"
-
-    @staticmethod
-    def get_user_budgets(user_id: int) -> List[Dict[str, Any]]:
-        """Get all fiscal year budgets for a user via the model"""
-        return UserModel.get_user_budgets(user_id)
-    
-    @staticmethod
-    def get_user_budget_for_year(user_id: int, fiscal_year: int) -> Optional[Dict[str, Any]]:
-        """Get a specific fiscal year budget for a user via the model"""
-        return UserModel.get_user_budget_for_year(user_id, fiscal_year)
-    
-    @staticmethod
-    def add_user_budget(user_id: int, fiscal_year: int, allocated_budget: float) -> Tuple[bool, str]:
-        """Add a new fiscal year budget for a user via the model"""
-        if allocated_budget < 0:
-            return False, "Le budget alloué doit être positif."
-        
-        # Check if budget for this fiscal year already exists
-        existing_budget = UserModel.get_user_budget_for_year(user_id, fiscal_year)
-        if existing_budget:
-            return False, f"Un budget existe déjà pour l'année fiscale {fiscal_year}. Utilisez la modification pour le mettre à jour."
-
-        success = UserModel.add_user_budget(user_id, fiscal_year, allocated_budget)
-        if success:
-            current_user_id = AuthController.get_current_user_id()
-            ActivityLogModel.log_activity(
-                current_user_id, None, 'add_user_budget',
-                f"Ajout budget {allocated_budget}€ pour user {user_id} FY {fiscal_year}"
-            )
-            return True, "Budget ajouté avec succès."
-        else:
-            return False, "Erreur lors de l'ajout du budget."
-    
-    @staticmethod
-    def update_user_budget(budget_id: int, allocated_budget: float) -> Tuple[bool, str]:
-        """Update an existing fiscal year budget amount via the model"""
-        if allocated_budget < 0:
-            return False, "Le budget alloué doit être positif."
-        
-        success = UserModel.update_user_budget(budget_id, allocated_budget)
-        if success:
-            # Log activity - might need to get user_id and fiscal_year from budget_id
-            try:
-                budget_info = UserModel.get_user_budget_by_id(budget_id) # Need a new method in UserModel
-                if budget_info:
-                    current_user_id = AuthController.get_current_user_id()
-                    ActivityLogModel.log_activity(
-                        current_user_id, None, 'update_user_budget',
-                        f"Mise à jour budget {allocated_budget}€ pour user {budget_info['user_id']} FY {budget_info['fiscal_year']}"
-                    )
-            except Exception as e:
-                print(f"[WARNING] Could not log budget update activity: {e}")
-               
-            return True, "Budget mis à jour avec succès."
-        else:
-            return False, "Erreur lors de la mise à jour du budget."
-    
-    @staticmethod
-    def delete_user_budget(budget_id: int) -> Tuple[bool, str]:
-        """Delete a fiscal year budget entry via the model"""
-        # Log activity before deleting the entry
-        try:
-            # Get budget info before deleting for logging
-            budget_info = UserModel.get_user_budget_by_id(budget_id)
-            
-            if budget_info:
-                current_user_id = AuthController.get_current_user_id()
-                ActivityLogModel.log_activity(
-                    current_user_id, None, 'delete_user_budget',
-                    f"Suppression budget pour user {budget_info['user_id']} FY {budget_info['fiscal_year']}"
-                )
-        except Exception as e:
-            print(f"[WARNING] Could not log budget delete activity: {e}")
-           
-        # Perform the actual deletion via the model
-        success = UserModel.delete_user_budget(budget_id)
-        
-        if success:
-            # If deletion was successful, attempt to log again if the initial attempt failed
-            # (The initial logging attempt before deletion might fail if the budget is already gone from a previous failed UI state)
-            try:
-                # We don't need to re-fetch budget info after successful deletion, as it's gone.
-                # Log a generic success message for the budget ID.
-                current_user_id = AuthController.get_current_user_id()
-                ActivityLogModel.log_activity(
-                     current_user_id, None, 'delete_user_budget',
-                     f"Suppression budget ID {budget_id}"
-                )
-            except Exception as log_e:
-                 print(f"[WARNING] Could not log budget delete activity after successful deletion: {log_e}")
-            
-            return True, "Budget supprimé avec succès."
-        else:
-            # If UserModel.delete_user_budget returned False, something went wrong at the database level
-            return False, "Erreur lors de la suppression du budget dans la base de données."
-
-    @staticmethod
-    def _display_user_statistics():
-        # Implementation of _display_user_statistics method
-        pass

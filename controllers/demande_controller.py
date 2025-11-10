@@ -5,133 +5,103 @@ from typing import Optional, List, Dict, Any, Tuple
 import pandas as pd
 from models.demande import DemandeModel
 from models.activity_log import ActivityLogModel
-from models.database import db
-from datetime import datetime
 
 class DemandeController:
     """Contrôleur pour la gestion des demandes"""
     
     @staticmethod
     def create_demande(user_id: int, type_demande: str, nom_manifestation: str, 
-                       client: str, date_evenement: str, lieu: str, montant: float, 
-                       participants: str = "", commentaires: str = "", urgence: str = "normale",
-                       budget: str = "", categorie: str = "", typologie_client: str = "",
-                       groupe_groupement: str = "", region: str = "", agence: str = "",
-                       client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
-                       demandeur_participe: bool = True, participants_libres: str = "",
-                       by: str = "", selected_participants: Optional[List[int]] = None) -> tuple[bool, Optional[int]]:
-        """Create a new demande with participant support (normal workflow)"""
-        try:
-            from utils.spinner_utils import OperationFeedback
-            
-            with OperationFeedback.create_demande():
-                # Calculate cy (calendar year) from date_evenement
-                try:
-                    date_obj = datetime.strptime(date_evenement, '%Y-%m-%d').date()
-                    cy = date_obj.year
-                except Exception:
-                    cy = None # Set cy to None if date parsing fails
-
-                # Valider l'année fiscale fournie
-                from utils.fiscal_year_utils import validate_fiscal_year, get_default_fiscal_year
-                
-                if by and validate_fiscal_year(by):
-                    final_by_string = by
-                else:
-                    if by:
-                        print(f"⚠️ Année fiscale non autorisée '{by}', utilisation de l'année par défaut")
-                    final_by_string = get_default_fiscal_year()
-                
-                print(f"[DEBUG] Création demande avec by={final_by_string}, cy={cy}")
-
-                # Create the demande in the database
-                success, demande_id = DemandeModel.create_demande(
-                    user_id=user_id,
-                    type_demande=type_demande,
-                    nom_manifestation=nom_manifestation,
-                    client=client,
-                    date_evenement=date_evenement,
-                    lieu=lieu,
-                    montant=montant,
-                    participants=participants,
-                    commentaires=commentaires,
-                    urgence=urgence,
-                    budget=budget or "",
-                    categorie=categorie or "",
-                    typologie_client=typologie_client or "",
-                    groupe_groupement=groupe_groupement or "",
-                    region=region or "",
-                    agence=agence or "",
-                    client_enseigne=client_enseigne or "",
-                    mail_contact=mail_contact or "",
-                    nom_contact=nom_contact or "",
-                    demandeur_participe=demandeur_participe,
-                    participants_libres=participants_libres or "",
-                    cy=cy,  # Pass calculated cy
-                    by=final_by_string,  # Pass validated by string
-                )
-            
-            if success and demande_id:
-                # Logger l'activité
-                ActivityLogModel.log_activity(
-                    user_id, demande_id, 'creation_demande',
-                    f"Création demande '{nom_manifestation}' - {montant}€"
-                )
-                
-                # Gérer les participants selon le rôle
-                from models.participant import ParticipantModel
-                from models.user import UserModel
-                
-                # Récupérer le rôle de l'utilisateur
-                user_data = UserModel.get_user_by_id(user_id)
-                if user_data:
-                    user_role = user_data['role']
-                    
-                    # Logique selon le rôle
-                    if user_role == 'tc':
-                        # TC participe automatiquement
-                        ParticipantModel.add_participant(demande_id, user_id, user_id)
-                        
-                    elif user_role == 'dr':
-                        # DR peut choisir de participer
-                        if demandeur_participe:
-                            ParticipantModel.add_participant(demande_id, user_id, user_id)
-                        
-                    # Add participants selected by the user in the form
-                    if selected_participants is not None:
-                        for participant_id in selected_participants:
-                             # Ensure participant_id is a valid user ID and not the creator's ID if auto-added
-                             # (Basic check, more robust validation might be needed)
-                             if participant_id and participant_id != user_id:
-                                 ParticipantModel.add_participant(demande_id, participant_id, user_id)
-                
-                # Handle automatic DR validation if the creator is a DR
-                if user_data and user_data['role'] == 'dr':
-                     now = datetime.now().isoformat()
-                     # Mettre à jour le statut et les champs de validation DR
-                     # Note: This assumes a DR validating their own request moves it to en_attente_financier
-                     # This might need adjustment based on exact workflow requirements.
-                     update_success = DemandeModel.update_demande(
-                          demande_id,
-                          status='en_attente_financier', # Pass directly to the next stage after DR validation
-                          valideur_dr_id=user_id,
-                          date_validation_dr=now,
-                          commentaire_dr="Validée automatiquement par le créateur (DR)"
-                     )
-                     if not update_success:
-                          print(f"[WARNING] Failed to auto-validate DR demand {demande_id}")
-            
-            print(f"[DEBUG] create_demande returning success: {success}, demande_id: {demande_id}")
-            return success, demande_id
-        except Exception as e:
-            print(f"Erreur création demande (contrôleur): {e}")
+                      client: str, date_evenement: str, lieu: str, montant: float, 
+                      participants: str = "", commentaires: str = "", urgence: str = "normale",
+                      budget: str = "", categorie: str = "", typologie_client: str = "",
+                      groupe_groupement: str = "", region: str = "", agence: str = "",
+                      client_enseigne: str = "", mail_contact: str = "", nom_contact: str = "",
+                      demandeur_participe: bool = True, participants_libres: str = "",
+                      selected_participants: List[int] = None) -> Tuple[bool, Optional[int]]:
+        """Créer une nouvelle demande avec gestion des participants ET validation centralisée"""
+        
+        # VALIDATION OBLIGATOIRE via le système centralisé
+        from utils.dropdown_manager import DropdownSecurityLayer
+        
+        demande_data = {
+            'budget': budget,
+            'categorie': categorie,
+            'typologie_client': typologie_client,
+            'groupe_groupement': groupe_groupement,
+            'region': region
+        }
+        
+        # Vérifier que toutes les valeurs sont autorisées
+        is_valid, validated_data, errors = DropdownSecurityLayer.secure_demande_creation(demande_data)
+        
+        if not is_valid:
+            error_msg = "Valeurs non autorisées détectées: " + "; ".join(errors)
+            print(f"❌ {error_msg}")
             return False, None
+        
+        # Créer la demande via le modèle
+        success, demande_id = DemandeModel.create_demande(
+            user_id=user_id,
+            type_demande=type_demande,
+            nom_manifestation=nom_manifestation,
+            client=client,
+            date_evenement=date_evenement,
+            lieu=lieu,
+            montant=montant,
+            participants=participants,
+            commentaires=commentaires,
+            urgence=urgence,
+            budget=budget,
+            categorie=categorie,
+            typologie_client=typologie_client,
+            groupe_groupement=groupe_groupement,
+            region=region,
+            agence=agence,
+            client_enseigne=client_enseigne,
+            mail_contact=mail_contact,
+            nom_contact=nom_contact,
+            demandeur_participe=demandeur_participe,
+            participants_libres=participants_libres
+        )
+        
+        if success and demande_id:
+            # Logger l'activité
+            ActivityLogModel.log_activity(
+                user_id, demande_id, 'creation_demande',
+                f"Création demande '{nom_manifestation}' - {montant}€"
+            )
+            
+            # Gérer les participants selon le rôle
+            from models.participant import ParticipantModel
+            from models.user import UserModel
+            
+            # Récupérer le rôle de l'utilisateur
+            user_data = UserModel.get_user_by_id(user_id)
+            if user_data:
+                user_role = user_data['role']
+                
+                # Logique selon le rôle
+                if user_role == 'tc':
+                    # TC participe automatiquement
+                    ParticipantModel.add_participant(demande_id, user_id, user_id)
+                    
+                elif user_role == 'dr':
+                    # DR peut choisir de participer
+                    if demandeur_participe:
+                        ParticipantModel.add_participant(demande_id, user_id, user_id)
+                    
+                # Ajouter les participants sélectionnés (TCs pour DR)
+                if selected_participants:
+                    for participant_id in selected_participants:
+                        ParticipantModel.add_participant(demande_id, participant_id, user_id)
+        
+        return success, demande_id
     
     @staticmethod
     def get_demandes_for_user(user_id: int, role: str, search_query: str = "", 
-                             status_filter: str = "tous", fiscal_year_filter: Optional[str] = None) -> pd.DataFrame:
-        """Récupérer les demandes pour un utilisateur selon son rôle avec filtre année fiscale string"""
-        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter, fiscal_year_filter)
+                             status_filter: str = "tous") -> pd.DataFrame:
+        """Récupérer les demandes pour un utilisateur selon son rôle"""
+        return DemandeModel.get_demandes_for_user(user_id, role, search_query, status_filter)
     
     @staticmethod
     def get_demande_by_id(demande_id: int) -> Optional[Dict[str, Any]]:
@@ -188,9 +158,9 @@ class DemandeController:
         return success, message
     
     @staticmethod
-    def get_dashboard_stats(user_id: int, role: str, fiscal_year_filter: Optional[str] = None) -> Dict[str, Any]:
-        """Récupérer les statistiques pour le tableau de bord avec filtre année fiscale string"""
-        return DemandeModel.get_dashboard_stats(user_id, role, fiscal_year_filter)
+    def get_dashboard_stats(user_id: int, role: str) -> Dict[str, Any]:
+        """Récupérer les statistiques pour le tableau de bord"""
+        return DemandeModel.get_dashboard_stats(user_id, role)
     
     @staticmethod
     def get_analytics_data(user_id: int, role: str) -> Dict[str, Any]:
@@ -319,6 +289,7 @@ class DemandeController:
     def get_validation_stats(user_id: int, role: str) -> Dict[str, Any]:
         """Récupérer les statistiques de validation pour un utilisateur"""
         try:
+            from models.database import db
             from datetime import datetime, timedelta
             
             stats = {
@@ -408,26 +379,12 @@ class DemandeController:
     
     @staticmethod
     def permanently_delete_demande(demande_id: int) -> Tuple[bool, str]:
-        """Supprimer définitivement une demande (utilisé par l'admin)"""
+        """Permanently delete a demande and all related data (ADMIN ONLY)"""
         try:
-            # Vérifier si la demande existe
-            demande = DemandeModel.get_demande_by_id(demande_id)
-            if not demande:
-                return False, "Demande non trouvée."
-
-            # Supprimer les participants liés
-            db.execute_query('DELETE FROM demande_participants WHERE demande_id = ?', (demande_id,))
-
-            # Supprimer les logs d'activité liés
-            db.execute_query('DELETE FROM activity_log WHERE demande_id = ?', (demande_id,))
-
-            # Supprimer la demande elle-même
-            db.execute_query('DELETE FROM demandes WHERE id = ?', (demande_id,))
-
-            return True, "Demande supprimée avec succès."
+            from models.demande import DemandeModel
+            return DemandeModel.permanently_delete_demande(demande_id)
         except Exception as e:
-            print(f"Erreur suppression définitive demande: {e}")
-            return False, f"Erreur lors de la suppression de la demande: {e}"
+            return False, f"Erreur: {str(e)}"
     
     @staticmethod
     def get_demande_dependencies(demande_id: int) -> Dict[str, int]:
@@ -437,25 +394,3 @@ class DemandeController:
             return DemandeModel.get_demande_dependencies(demande_id)
         except Exception as e:
             return {}
-    
-    @staticmethod
-    def admin_delete_demande(demande_id: int, admin_user_id: int) -> Tuple[bool, str]:
-        """Permet à un administrateur de supprimer définitivement une demande"""
-        from models.user import UserModel
-        
-        # Vérifier que l'utilisateur est bien un admin
-        admin_user = UserModel.get_user_by_id(admin_user_id)
-        if not admin_user or admin_user['role'] != 'admin':
-            return False, "Action non autorisée. Seuls les administrateurs peuvent supprimer des demandes de manière permanente."
-            
-        # Appeler la méthode de suppression permanente du modèle
-        success, message = DemandeModel.permanently_delete_demande(demande_id)
-        
-        if success:
-            # Logger l'activité
-            ActivityLogModel.log_activity(
-                admin_user_id, demande_id, 'admin_suppression_demande',
-                f"Suppression définitive de la demande ID {demande_id} par l'admin"
-            )
-        
-        return success, message

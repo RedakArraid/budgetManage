@@ -7,53 +7,6 @@ import pandas as pd
 from datetime import datetime
 from controllers.auth_controller import AuthController
 from models.dropdown_options import DropdownOptionsModel
-from models.database import db
-
-def _get_usage_count(category: str, value: str) -> int:
-    """
-    Obtient le nombre d'utilisations d'une valeur dans les demandes
-    Gère le mapping des catégories vers les bonnes colonnes
-    """
-    try:
-        # Mapping des catégories vers les colonnes de la table demandes
-        column_mapping = {
-            'budget': 'budget',
-            'categorie': 'categorie',
-            'typologie_client': 'typologie_client',
-            'groupe_groupement': 'groupe_groupement',
-            'region': 'region',
-            'annee_fiscale': None  # Cas spécial - pas de colonne directe
-        }
-        
-        column_name = column_mapping.get(category)
-        
-        if column_name is None:
-            # Pour annee_fiscale, on ne peut pas compter directement
-            # car il n'y a pas de colonne annee_fiscale dans demandes
-            if category == 'annee_fiscale':
-                # On pourrait vérifier fiscal_year mais c'est complexe avec la conversion
-                # Pour l'instant, on retourne 0
-                return 0
-            else:
-                return None
-        
-        # Vérifier si la colonne existe dans la table demandes
-        columns_info = db.execute_query("PRAGMA table_info(demandes)", fetch='all')
-        existing_columns = [col['name'] for col in columns_info]
-        
-        if column_name not in existing_columns:
-            return None
-        
-        # Compter les utilisations
-        result = db.execute_query(f'''
-            SELECT COUNT(*) FROM demandes WHERE {column_name} = ?
-        ''', (value,), fetch='one')
-        
-        return result[0] if result else 0
-        
-    except Exception as e:
-        print(f"Erreur _get_usage_count pour {category}={value}: {e}")
-        return None
 
 @AuthController.require_role(['admin'])
 def admin_dropdown_options_page():
@@ -92,8 +45,7 @@ def _crud_options_tab():
         'categorie': '📂 Catégorie', 
         'typologie_client': '🏷️ Typologie Client',
         'groupe_groupement': '👥 Groupe/Groupement',
-        'region': '🌍 Région',
-        'annee_fiscale': '📅 Année Fiscale'
+        'region': '🌍 Région'
     }
     
     selected_category = st.selectbox(
@@ -222,7 +174,6 @@ def _crud_options_tab():
         
         # Valeur (affichage avec auto-normalisation)
         with col[2]:
-            # Pour toutes les catégories, utiliser la normalisation standard
             from utils.dropdown_value_normalizer import normalize_dropdown_value
             expected_value = normalize_dropdown_value(option['label'])
             if option['value'] == expected_value:
@@ -252,29 +203,32 @@ def _crud_options_tab():
         
         # Utilisation en base
         with col[5]:
-            usage_count = _get_usage_count(selected_category, option['value'])
-            if usage_count is not None:
+            try:
+                usage_count = db.execute_query(f'''
+                    SELECT COUNT(*) FROM demandes WHERE {selected_category} = ?
+                ''', (option['value'],), fetch='one')[0]
+                
                 if usage_count > 0:
                     st.caption(f"📊 {usage_count}x")
                 else:
                     st.caption("📊 0x")
-            else:
+            except:
                 st.caption("❓")
         
         # Actions
         with col[6]:
             col_save, col_del = st.columns(2)
             
-            # Bouton sauvegarder avec auto-normalisation standard
+            # Bouton sauvegarder avec auto-normalisation
             with col_save:
-                if st.button("💾", key=f"save_db_{option['id']}", help="Sauvegarder"):
+                if st.button("💾", key=f"save_db_{option['id']}", help="Sauvegarder avec auto-normalisation"):
                     try:
                         success, message = DropdownOptionsModel.update_option(
                             option_id=option['id'],
                             label=new_label,
                             order_index=new_order,
                             is_active=is_active,
-                            auto_normalize_value=True  # Toujours utiliser la normalisation
+                            auto_normalize_value=True
                         )
                         
                         if success:
@@ -318,8 +272,7 @@ def _add_option_simple_tab():
         'categorie': '📂 Catégorie', 
         'typologie_client': '🏷️ Typologie Client',
         'groupe_groupement': '👥 Groupe/Groupement',
-        'region': '🌍 Région',
-        'annee_fiscale': '📅 Année Fiscale'
+        'region': '🌍 Région'
     }
     
     # Mode de saisie
@@ -536,30 +489,23 @@ def _impact_demandes_tab():
     
     with col3:
         try:
-            # Liste des catégories qui ont des colonnes dans demandes
-            categories_with_columns = ['budget', 'categorie', 'typologie_client', 'groupe_groupement', 'region']
+            categories_list = ['budget', 'categorie', 'typologie_client', 'groupe_groupement', 'region']
             invalid_count = 0
             
-            for category in categories_with_columns:
+            for category in categories_list:
                 try:
-                    # Vérifier si la colonne existe
-                    columns_info = db.execute_query("PRAGMA table_info(demandes)", fetch='all')
-                    existing_columns = [col['name'] for col in columns_info]
-                    
-                    if category in existing_columns:
-                        invalid = db.execute_query(f'''
-                            SELECT COUNT(DISTINCT d.{category})
-                            FROM demandes d
-                            WHERE d.{category} IS NOT NULL 
-                            AND d.{category} != ''
-                            AND NOT EXISTS (
-                                SELECT 1 FROM dropdown_options o 
-                                WHERE o.category = ? AND o.value = d.{category} AND o.is_active = 1
-                            )
-                        ''', (category,), fetch='one')[0]
-                        invalid_count += invalid
-                except Exception as e:
-                    print(f"Erreur vérification {category}: {e}")
+                    invalid = db.execute_query(f'''
+                        SELECT COUNT(DISTINCT d.{category})
+                        FROM demandes d
+                        WHERE d.{category} IS NOT NULL 
+                        AND d.{category} != ''
+                        AND NOT EXISTS (
+                            SELECT 1 FROM dropdown_options o 
+                            WHERE o.category = ? AND o.value = d.{category} AND o.is_active = 1
+                        )
+                    ''', (category,), fetch='one')[0]
+                    invalid_count += invalid
+                except:
                     pass
             
             st.metric("Valeurs Invalides", invalid_count)

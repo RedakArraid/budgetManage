@@ -1,6 +1,5 @@
 """
-Dashboard page view - VERSION CORRIGÉE
-Architecture cohérente avec session_manager
+Dashboard page view
 """
 import streamlit as st
 from controllers.auth_controller import AuthController
@@ -65,37 +64,37 @@ def _display_metrics(role, stats):
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #4CAF50; margin: 0;">{stats.get('total_demandes', 0)}</h3>
-                <p style="margin: 0; color: #333;">Total Demandes</p>
+                <p style="margin: 0; color: #888;">Total Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #ffc107; margin: 0;">{stats.get('en_attente_dr', 0)}</h3>
-                <p style="margin: 0; color: #333;">Attente DR</p>
+                <p style="margin: 0; color: #888;">Attente DR</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #fd7e14; margin: 0;">{stats.get('en_attente_financier', 0)}</h3>
-                <p style="margin: 0; color: #333;">Attente Financier</p>
+                <p style="margin: 0; color: #888;">Attente Financier</p>
             </div>
             """, unsafe_allow_html=True)
         with col4:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #333;">Validées</p>
+                <p style="margin: 0; color: #888;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col5:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
-                <p style="margin: 0; color: #333;">Montant Validé</p>
+            <div class="metric-card">
+                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <p style="margin: 0; color: #888;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -103,23 +102,23 @@ def _display_metrics(role, stats):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #74b9ff; margin: 0;">{stats.get('mes_demandes', 0)}</h3>
-                <p style="margin: 0; color: #333;">Mes Demandes</p>
+                <p style="margin: 0; color: #888;">Mes Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #333;">Validées</p>
+                <p style="margin: 0; color: #888;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
-                <p style="margin: 0; color: #333;">Montant Validé</p>
+            <div class="metric-card">
+                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <p style="margin: 0; color: #888;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -127,16 +126,16 @@ def _display_metrics(role, stats):
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #fdcb6e; margin: 0;">{stats.get('total_demandes', 0)}</h3>
-                <p style="margin: 0; color: #333;">Total Demandes</p>
+                <p style="margin: 0; color: #888;">Total Demandes</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #ffc107; margin: 0;">{stats.get('en_attente_validation', 0)}</h3>
-                <p style="margin: 0; color: #333;">En Attente Validation</p>
+                <p style="margin: 0; color: #888;">En Attente Validation</p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -144,79 +143,63 @@ def _display_metrics(role, stats):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #fd7e14; margin: 0;">{stats.get('en_attente_validation', 0)}</h3>
-                <p style="margin: 0; color: #333;">En Attente Validation</p>
+                <p style="margin: 0; color: #888;">En Attente Validation</p>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
+            <div class="metric-card">
                 <h3 style="color: #28a745; margin: 0;">{stats.get('validees', 0)}</h3>
-                <p style="margin: 0; color: #333;">Validées</p>
+                <p style="margin: 0; color: #888;">Validées</p>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
-            <div class="metric-card" style="background-color: #ebebeb; padding: 10px; border-radius: 5px;">
-                <h3 style="color: #4CAF50; margin: 0;">{(stats.get('montant_valide') or 0):,.0f}€</h3>
-                <p style="margin: 0; color: #333;">Montant Validé</p>
+            <div class="metric-card">
+                <h3 style="color: #4CAF50; margin: 0;">{stats.get('montant_valide', 0):,.0f}€</h3>
+                <p style="margin: 0; color: #888;">Montant Validé</p>
             </div>
             """, unsafe_allow_html=True)
 
 def _display_quick_actions(role):
-    """Section Actions Rapides - ARCHITECTURE COHÉRENTE"""
-    from utils.session_manager import session_manager
-    
-    # Utiliser des colonnes pour organiser les boutons
+    """Display quick action buttons"""
     col1, col2, col3, col4 = st.columns(4)
-
+    
     with col1:
         if role in ['tc', 'dr', 'marketing']:
-            if st.button("➕ Nouvelle Demande", use_container_width=True, key='quick_action_new_demande'):
-                print("[DEBUG] Quick action button clicked: Nouvelle Demande")
-                session_manager.set_current_page("nouvelle_demande")
+            if st.button("➕ Nouvelle Demande", use_container_width=True):
+                st.session_state.page = "nouvelle_demande"
                 st.rerun()
         elif role == 'admin':
-            if st.button("👥 Gestion Utilisateurs", use_container_width=True, key='quick_action_manage_users'):
-                print("[DEBUG] Quick action button clicked: Gestion Utilisateurs")
-                session_manager.set_current_page("gestion_utilisateurs")
+            if st.button("👥 Gestion Utilisateurs", use_container_width=True):
+                st.session_state.page = "gestion_utilisateurs"
                 st.rerun()
-
+    
     with col2:
-        if st.button("📋 Mes Demandes", use_container_width=True, key='quick_action_mes_demandes'):
-            print("[DEBUG] Quick action button clicked: Mes Demandes")
-            session_manager.set_current_page("demandes")
+        if st.button("📋 Mes Demandes", use_container_width=True):
+            st.session_state.page = "demandes"
             st.rerun()
-
+    
     with col3:
         if role in ['dr', 'dr_financier', 'dg']:
-            if st.button("✅ Validations", use_container_width=True, key='quick_action_validations'):
-                print("[DEBUG] Quick action button clicked: Validations")
-                session_manager.set_current_page("validations")
+            if st.button("✅ Validations", use_container_width=True):
+                st.session_state.page = "validations"
                 st.rerun()
         else:
-            if st.button("📊 Analytics", use_container_width=True, key='quick_action_analytics'):
-                print("[DEBUG] Quick action button clicked: Analytics")
-                session_manager.set_current_page("analytics")
+            if st.button("📊 Analytics", use_container_width=True):
+                st.session_state.page = "analytics"
                 st.rerun()
-
+    
     with col4:
-        if st.button("🔔 Notifications", use_container_width=True, key='quick_action_notifications'):
-            print("[DEBUG] Quick action button clicked: Notifications")
-            session_manager.set_current_page("notifications")
+        if st.button("🔔 Notifications", use_container_width=True):
+            st.session_state.page = "notifications"
             st.rerun()
 
 def _display_recent_demandes(user_id, role):
     """Display recent demandes"""
-    from utils.session_manager import session_manager
-    
-    # Removed the outer container with background color
-    
-    # Keep the main subheader for the section (already in dashboard_page)
-    # Removed the duplicate st.subheader("📋 Demandes Récentes") from here
-    
-    demandes = DemandeController.get_demandes_for_user(user_id, role, status_filter='tous')
+    demandes = DemandeController.get_demandes_for_user(user_id, role)
     
     if not demandes.empty:
         # Show only 5 most recent
@@ -225,43 +208,36 @@ def _display_recent_demandes(user_id, role):
         for idx, row in recent_demandes.iterrows():
             _display_demande_card(row)
         
-        # Adjust button style if needed inside the dark container
         if len(demandes) > 5:
-            st.markdown("<br>", unsafe_allow_html=True) # Add a little space
-            if st.button(f"Voir toutes les demandes ({len(demandes)})", use_container_width=True, key="dashboard_see_all_demandes"):
-                session_manager.set_current_page("demandes")
+            if st.button(f"Voir toutes les demandes ({len(demandes)})", use_container_width=True):
+                st.session_state.page = "demandes"
                 st.rerun()
     else:
         st.info("Aucune demande pour le moment")
 
-    # Removed the closing container div
-
 def _display_demande_card(row):
     """Display a single demande card"""
     from config.settings import get_status_info
-    from utils.date_utils import format_date # Ensure format_date is imported here if used below
-
+    
     status_info = get_status_info(row['status'])
     status_class = f"status-{row['status']}"
     
-    # Changed background color to a very light grey (#ebebeb) to approximate the user's perceived Windows sidebar color
-    # Text colors are kept suitable for a light background
     st.markdown(f"""
-    <div class="demand-card" style="background-color: #ebebeb; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
+    <div class="demand-card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1;">
                 <h4 style="margin: 0 0 0.5rem 0; color: #4CAF50;">{row['nom_manifestation']}</h4>
-                <p style="margin: 0; color: #333; font-size: 0.9rem;">
+                <p style="margin: 0; color: #888; font-size: 0.9rem;">
                     🏢 {row['client']} • 📅 {format_date(row['date_evenement'])} • 📍 {row['lieu']}
                 </p>
-                <p style="margin: 0.5rem 0 0 0; color: #555; font-size: 0.8rem;">
+                <p style="margin: 0.5rem 0 0 0; color: #aaa; font-size: 0.8rem;">
                     👤 {row['prenom']} {row['nom']} • 📧 {row['email']}
                 </p>
                 <span class="{status_class}">{status_info['label']}</span>
             </div>
             <div style="text-align: right;">
                 <h3 style="margin: 0; color: #4CAF50;">{row['montant']:,.0f}€</h3>
-                <p style="margin: 0; color: #555; font-size: 0.8rem;">{row['updated_at'][:10]}</p>
+                <p style="margin: 0; color: #888; font-size: 0.8rem;">{row['updated_at'][:10]}</p>
             </div>
         </div>
     </div>

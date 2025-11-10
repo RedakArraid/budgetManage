@@ -167,6 +167,7 @@ def admin_create_demande_page():
             date_evenement = st.date_input(
                 "📅 Date de l'événement*",
                 value=date.today(),
+                min_value=date.today()
             )
         
         with col2:
@@ -189,24 +190,6 @@ def admin_create_demande_page():
                     'critique': '🔴 Critique'
                 }[x]
             )
-            # Année fiscale depuis les dropdowns admin
-            from utils.fiscal_year_utils import get_valid_fiscal_years, get_default_fiscal_year
-            fiscal_options = get_valid_fiscal_years()
-            
-            if fiscal_options:
-                selected_by = st.selectbox(
-                    "🗓️ Année Fiscale*",
-                    options=[opt[0] for opt in fiscal_options],
-                    format_func=lambda x: next((opt[1] for opt in fiscal_options if opt[0] == x), x),
-                    help="Année fiscale selon configuration admin"
-                )
-            else:
-                st.error("⚠️ Aucune année fiscale configurée par l'admin")
-                selected_by = st.text_input(
-                    "🗓️ Année Fiscale* (manuel)",
-                    value=get_default_fiscal_year(),
-                    help="Contactez l'admin pour configurer les années fiscales"
-                )
 
         # 4. Gestion des participants
         st.markdown("### 👥 Participants")
@@ -490,91 +473,22 @@ def admin_create_demande_page():
                 f"🚀 {'Créer et Valider' if auto_validate else 'Créer et Traiter'}", 
                 use_container_width=True,
                 type="primary",
+                disabled=not button_enabled,
                 help="Créer et appliquer le workflow sélectionné"
             )
     
     # Traitement du formulaire
     if create_draft or create_and_process:
-        # Vérification finale avant traitement (maintenant faite après le clic)
-        if create_and_process:
-            # Re-valider les champs obligatoires
-            required_fields_ok = (
-                nom_manifestation and nom_manifestation.strip() and
-                client and client.strip() and
-                lieu and lieu.strip() and
-                montant > 0 and
-                agence and agence.strip()
-            )
-            
-            # Vérifier les listes déroulantes - logique adaptée selon disponibilité
-            dropdown_fields_ok = True
-            dropdown_errors_submit = [] # Utiliser une liste séparée pour les erreurs de soumission
-            
-            try:
-                from views.admin_dropdown_options_view import validate_dropdown_value
-                
-                if budget_options:
-                    if not budget or not budget.strip():
-                         dropdown_errors_submit.append("Budget manquant (options disponibles)")
-                    elif not validate_dropdown_value('budget', budget):
-                         dropdown_errors_submit.append(f"Budget '{budget}' non autorisé")
-                
-                if categorie_options:
-                    if not categorie or not categorie.strip():
-                        dropdown_errors_submit.append("Catégorie manquante (options disponibles)")
-                    elif not validate_dropdown_value('categorie', categorie):
-                         dropdown_errors_submit.append(f"Catégorie '{categorie}' non autorisée")
-                         
-                if typologie_options:
-                    if not typologie_client or not typologie_client.strip():
-                         dropdown_errors_submit.append("Typologie client manquante (options disponibles)")
-                    elif not validate_dropdown_value('typologie_client', typologie_client):
-                         dropdown_errors_submit.append(f"Typologie '{typologie_client}' non autorisée")
-                         
-                if region_options:
-                     if not region or not region.strip():
-                         dropdown_errors_submit.append("Région manquante (options disponibles)")
-                     elif not validate_dropdown_value('region', region):
-                         dropdown_errors_submit.append(f"Région '{region}' non autorisée")
-                         
-                if groupe_options:
-                    if not groupe_groupement or not groupe_groupement.strip():
-                        dropdown_errors_submit.append("Groupe/Groupement manquant (options disponibles)")
-                    elif not validate_dropdown_value('groupe_groupement', groupe_groupement):
-                        dropdown_errors_submit.append(f"Groupe '{groupe_groupement}' non autorisé")
-
-            except Exception as e:
-                 st.warning(f"⚠️ Avertissement validation listes lors de la soumission: {e}")
-                 dropdown_errors_submit = [] # Ne pas bloquer la soumission en cas d'erreur technique
-                 
-            all_fields_valid = required_fields_ok and not dropdown_errors_submit
-
-            if not all_fields_valid:
-                error_messages = []
-                if not nom_manifestation or not nom_manifestation.strip():
-                    error_messages.append("Nom manifestation")
-                if not client or not client.strip():
-                    error_messages.append("Client")
-                if not lieu or not lieu.strip():
-                    error_messages.append("Lieu")
-                if montant <= 0:
-                    error_messages.append("Montant")
-                if not agence or not agence.strip():
-                    error_messages.append("Agence")
-
-                # Ajouter les erreurs spécifiques des dropdowns si elles existent
-                error_messages.extend(dropdown_errors_submit)
-
-                if error_messages:
-                     st.error(f"⚠️ Veuillez remplir les champs requis : {', '.join(error_messages)}")
-                return # Arrêter le traitement si validation échoue
-
+        # Vérification finale avant traitement
+        if create_and_process and not button_enabled:
+            st.error("⚠️ Veuillez remplir tous les champs obligatoires")
+            return
+        
         # Pour les brouillons, on est plus permissif
-        if create_draft:
-             if not nom_manifestation or not client:
-                 st.error("⚠️ Au minimum le nom de la manifestation et le client sont requis pour un brouillon")
-                 return # Arrêter le traitement si validation brouillon échoue
-
+        if create_draft and (not nom_manifestation or not client):
+            st.error("⚠️ Au minimum le nom de la manifestation et le client sont requis pour un brouillon")
+            return
+        
         with st.spinner("🚀 Création de la demande admin en cours..."):
             success, demande_id = AdminDemandeController.create_admin_demande(
                 admin_id=AuthController.get_current_user_id(),
@@ -599,8 +513,7 @@ def admin_create_demande_page():
                 demandeur_participe=demandeur_participe,
                 participants_libres=participants_libres,
                 auto_validate=create_and_process and auto_validate,
-                selected_participants=selected_participants,
-                by=selected_by
+                selected_participants=selected_participants
             )
         
         if success:

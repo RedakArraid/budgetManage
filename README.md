@@ -1,189 +1,270 @@
-# 💰 BudgetManage v1.0.0 - Système de Gestion Budget
+# BudgetManage - Système de Gestion Budget
 
-> Application Streamlit moderne pour la gestion des demandes budgétaires avec workflow de validation hiérarchique
+Application Streamlit moderne pour la gestion des demandes budgétaires avec workflow de validation hiérarchique.
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](https://github.com/RedakArraid/budgetManage/releases)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
-[![SQLite](https://img.shields.io/badge/Database-SQLite-green.svg)](https://sqlite.org/)
-[![Architecture](https://img.shields.io/badge/Architecture-MVC-orange.svg)](#architecture)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue.svg)](https://github.com/RedakArraid/budgetManage/actions)
+## 🏗️ Architecture MVC
 
-## 🎉 Version 1.0.0 - Production Ready!
-
-**BudgetManage** est maintenant **officiellement stable** et prêt pour la production ! Cette première version majeure inclut toutes les fonctionnalités essentielles pour la gestion budgétaire d'entreprise.
-
-## 🚀 Fonctionnalités
-
-- ✅ **Workflow de validation hiérarchique** (TC → DR → Financier/DG)
-- ✅ **Système de permissions granulaires** basé sur les rôles
-- ✅ **Notifications email automatiques** (Outlook + SMTP)
-- ✅ **Analytics et rapports avancés** avec graphiques temps réel
-- ✅ **Interface moderne** avec Streamlit
-- ✅ **Architecture MVC** maintenable et évolutive
-- ✅ **Base de données optimisée** avec migrations automatiques
-- ✅ **Sécurité robuste** avec authentification bcrypt
-
-## 🏗️ Architecture
+### Structure du Projet
 
 ```
 budgetmanage/
-├── 📱 main.py                 # Point d'entrée et routeur
-├── ⚙️ config/                 # Configuration centralisée
-├── 💾 models/                 # Couche de données (User, Demande, etc.)
-├── 🎮 controllers/            # Logique métier
-├── 🔧 services/               # Services transversaux
-├── 🖥️ views/                  # Interface utilisateur Streamlit
-├── 🛠️ utils/                  # Utilitaires et helpers
-└── 🎨 static/                 # Styles et ressources
+├── main.py                    # Point d'entrée principal
+├── config/                    # Configuration
+│   ├── __init__.py
+│   └── settings.py           # Paramètres de l'application
+├── models/                    # Modèles de données
+│   ├── __init__.py
+│   ├── database.py           # Gestionnaire de base de données
+│   ├── user.py              # Modèle utilisateur
+│   ├── demande.py           # Modèle demande
+│   ├── notification.py      # Modèle notification
+│   └── activity_log.py      # Modèle logs d'activité
+├── controllers/               # Contrôleurs métier
+│   ├── __init__.py
+│   ├── auth_controller.py    # Contrôleur authentification
+│   ├── user_controller.py    # Contrôleur utilisateur
+│   └── demande_controller.py # Contrôleur demande
+├── services/                  # Services métier
+│   ├── __init__.py
+│   ├── email_service.py      # Service email
+│   ├── notification_service.py # Service notifications
+│   └── workflow_service.py   # Service workflow
+├── views/                     # Vues Streamlit
+│   ├── __init__.py
+│   ├── login_view.py         # Page connexion
+│   ├── dashboard_view.py     # Page tableau de bord
+│   ├── nouvelle_demande_view.py # Page nouvelle demande
+│   ├── demandes_view.py      # Page gestion demandes
+│   ├── gestion_utilisateurs_view.py # Page admin utilisateurs
+│   ├── validations_view.py   # Page validations
+│   ├── analytics_view.py     # Page analytics
+│   └── notifications_view.py # Page notifications
+├── utils/                     # Utilitaires
+│   ├── __init__.py
+│   ├── security.py          # Utilitaires sécurité
+│   ├── validators.py        # Validateurs
+│   └── date_utils.py        # Utilitaires de date
+├── static/                    # Ressources statiques
+│   └── styles.py            # Styles CSS
+├── .env.template             # Template variables d'environnement
+├── requirements.txt          # Dépendances Python
+├── budget_workflow.db        # Base de données SQLite
+├── start.bat / start.sh      # Scripts de démarrage
+├── DELETED_FILES/            # Fichiers supprimés (ancienne version)
+└── README.md                # Documentation
 ```
 
-## 👥 Rôles et Workflow
+## 🧹 Nettoyage et Corrections (23 Mai 2025)
 
-| Rôle | Permissions | Workflow |
-|------|-------------|----------|
-| **Admin** | Gestion complète | Tous accès |
-| **TC** | Création demandes | TC → DR → Financier |
-| **DR** | Validation équipe | Validation première étape |
-| **Financier/DG** | Validation finale | Approbation budgétaire |
-| **Marketing** | Demandes marketing | Marketing → Financier |
+### Corrections Apportées
+Tous les problèmes de validation ont été résolus :
+- ✅ **Validation DR** : Passage correct vers `en_attente_financier`
+- ✅ **Validation Financier** : Boutons fonctionnels 
+- ✅ **Validation DG** : Support complet avec colonnes dédiées
+- ✅ **Page Admin** : Analytics corrigées
+- ✅ **Workflow complet** : TC → DR → Financier/DG → Validée
 
-## 🚀 Installation Rapide
+### Fichiers de Correction
+Tous les scripts de diagnostic, correction et test ont été déplacés dans :
+`DELETED_FILES/corrections_validation/`
 
-### 💻 Option 1: Exécutable Windows (Recommandé)
+Ces fichiers incluent :
+- Scripts de diagnostic des problèmes
+- Scripts de migration base de données
+- Tests de validation du workflow
+- Documentation des corrections
 
-**Aucune installation requise !**
+## 🚀 Installation et Démarrage
 
-1. **Télécharger** depuis [GitHub Releases](https://github.com/RedakArraid/budgetManage/releases/latest)
-2. **Télécharger** `BudgetManage-Windows-Portable.zip`
-3. **Extraire** le fichier ZIP
-4. **Double-cliquer** sur `start.bat`
-5. **Ouvrir** le navigateur sur http://localhost:8501
+### Prérequis
+- Python 3.8+
+- Windows (pour les notifications Outlook, optionnel)
 
-### 🐍 Option 2: Installation Python
+### Installation
 
+1. **Cloner et accéder au projet**
 ```bash
-# Clone du projet
-git clone https://github.com/RedakArraid/budgetManage.git
-cd budgetManage
+cd budgetmanage
+```
 
-# Installation des dépendances
+2. **Installer les dépendances**
+```bash
 pip install -r requirements.txt
+```
 
-# Configuration
+3. **Configuration**
+```bash
+# Copier le template de configuration
 cp .env.template .env
-# Éditer .env avec vos paramètres email
 
-# Démarrage
+# Éditer .env avec vos paramètres
+# EMAIL_ADDRESS=votre-email@gmail.com
+# EMAIL_PASSWORD=votre-mot-de-passe-app
+```
+
+4. **Démarrer l'application**
+```bash
+# Démarrage de l'application
 streamlit run main.py
+
+# Ou utiliser les scripts
+./start.sh    # Linux/macOS
+start.bat     # Windows
 ```
 
-### 🐳 Option 3: Docker
+## 🏛️ Architecture MVC Moderne
 
-```bash
-# Télécharger l'image Docker
-wget https://github.com/RedakArraid/budgetManage/releases/latest/download/budgetmanage-docker.tar.gz
-gunzip budgetmanage-docker.tar.gz
-docker load < budgetmanage-docker.tar
+### ✅ Avantages de l'Architecture
 
-# Lancer l'application
-docker run -p 8501:8501 budgetmanage:v1.0.0
-```
+1. **Séparation des Responsabilités**
+   - **Models** : Gestion des données et base de données
+   - **Views** : Interface utilisateur Streamlit
+   - **Controllers** : Logique métier et coordination
+   - **Services** : Services transversaux (email, notifications)
 
-## ⚙️ Configuration
+2. **Maintenabilité**
+   - Code modulaire et réutilisable
+   - Tests unitaires facilités
+   - Évolutions plus simples
 
-### Email (Notifications)
-```bash
-# .env
-EMAIL_ADDRESS=votre-email@gmail.com
-EMAIL_PASSWORD=votre-mot-de-passe-app
-```
+3. **Configuration Externalisée**
+   - Paramètres dans `config/settings.py`
+   - Variables d'environnement avec `.env`
+   - Configuration par rôle centralisée
 
-### Première Connexion
-- **URL** : http://localhost:8501
-- **Admin** : admin@budget.com / admin123
-- **Changez le mot de passe** après la première connexion !
+4. **Sécurité Renforcée**
+   - Validation centralisée dans `utils/validators.py`
+   - Utilitaires de sécurité dans `utils/security.py`
+   - Contrôle d'accès par décorateurs
 
-## 📊 Captures d'Écran
+5. **Services Découplés**
+   - Service email indépendant
+   - Service notifications réutilisable
+   - Service workflow modulaire
 
-### Tableau de Bord
-![Dashboard](docs/screenshots/dashboard.png)
+## 🔧 Version 2.0 - Architecture Refactorisée
+
+Cette version représente une refactorisation complète depuis une version monolithique vers une architecture MVC moderne :
+
+- **Meilleure organisation** du code
+- **Performance améliorée** grâce à la modularité
+- **Facilité de maintenance** et d'évolution
+- **Tests unitaires** possibles
+- **Documentation** intégrée
+- **Code plus propre** et maintenable
+
+> 📁 Les anciens fichiers ont été déplacés dans `DELETED_FILES/` pour référence
+
+## 👥 Rôles et Permissions
+
+### Rôles Supportés
+- **Admin** : Gestion complète du système
+- **TC** (Technico-Commercial) : Création demandes budget
+- **DR** (Directeur Régional) : Validation équipe + demandes propres
+- **DR Financier** : Validation financière finale
+- **DG** (Directeur Général) : Validation financière finale
+- **Marketing** : Demandes marketing spécifiques
 
 ### Workflow de Validation
-![Workflow](docs/screenshots/workflow.png)
+1. **TC** → **DR** → **Financier/DG** (demandes budget)
+2. **Marketing** → **Financier/DG/Admin** (demandes marketing)
 
-### Analytics
-![Analytics](docs/screenshots/analytics.png)
+## 📊 Fonctionnalités
 
-## 🧪 Tests et Qualité
+- ✅ Authentification sécurisée
+- ✅ Gestion utilisateurs complète
+- ✅ Workflow de validation hiérarchique
+- ✅ Notifications email automatiques
+- ✅ Dashboard avec métriques
+- ✅ Analytics et rapports
+- ✅ Export Excel/CSV
+- ✅ Interface responsive
+- ✅ Logs d'activité complets
 
-```bash
-# Tests unitaires (à implémenter)
-python -m pytest tests/
+## 🔧 Configuration Avancée
 
-# Lint et formatage
-black .
-flake8 .
+### Email (Outlook)
+```python
+# config/settings.py
+EMAIL_CONFIG = {
+    'use_outlook': True,  # Utiliser Outlook COM
+    'smtp_server': 'smtp.gmail.com',  # Fallback SMTP
+    'smtp_port': 587
+}
 ```
 
-## 🔧 Technologies
-
-- **Frontend** : Streamlit, HTML/CSS/JavaScript
-- **Backend** : Python 3.8+, SQLite
-- **Sécurité** : bcrypt, session management
-- **Email** : SMTP, Outlook COM
-- **Analytics** : Plotly, Pandas
-- **Architecture** : MVC Pattern
-
-## 🚢 Déploiement
-
-### Production
-- **Base de données** : PostgreSQL/MySQL recommandé
-- **HTTPS** : Certificat SSL obligatoire
-- **Email** : Service SMTP dédié (SendGrid, Mailgun)
-- **Monitoring** : Logs et métriques
-
-### Docker (à venir)
-```bash
-docker build -t budgetmanage .
-docker run -p 8501:8501 budgetmanage
+### Base de Données
+```python
+# config/settings.py  
+DATABASE_CONFIG = {
+    'name': 'budget_workflow.db',
+    'path': 'chemin/vers/la/base.db'
+}
 ```
 
-## 📋 Roadmap
+### Rôles et Permissions
+```python
+# config/settings.py
+ROLE_CONFIG = {
+    'roles': {
+        'admin': {
+            'permissions': ['create_user', 'view_all'],
+            'color': '#ff6b6b'
+        }
+    }
+}
+```
 
-### v2.1 (Q3 2025)
-- [ ] Tests unitaires complets
-- [ ] API REST
-- [ ] Docker containerization
-- [ ] CI/CD Pipeline
+## 🐛 Debug et Logs
 
-### v2.2 (Q4 2025)
-- [ ] Base PostgreSQL
-- [ ] Authentification SSO
-- [ ] Interface mobile/PWA
-- [ ] Intégrations ERP
+Les logs d'activité sont automatiquement créés pour :
+- Connexions/déconnexions
+- Créations/modifications d'utilisateurs
+- Workflow des demandes
+- Actions administratives
 
-## 🤝 Contribution
+## 🚀 Déploiement
 
-1. **Fork** le projet
-2. **Créer** une branche feature (`git checkout -b feature/amelioration`)
-3. **Commit** vos changements (`git commit -m 'Ajout fonctionnalité'`)
-4. **Push** vers la branche (`git push origin feature/amelioration`)
-5. **Ouvrir** une Pull Request
+Pour un déploiement en production :
+
+1. **Modifier la base de données** (PostgreSQL/MySQL)
+2. **Configurer un serveur SMTP** dédié
+3. **Ajouter HTTPS** et authentification avancée
+4. **Implémenter la haute disponibilité**
+5. **Ajouter monitoring** et alertes
+
+## 📝 Contribution
+
+L'architecture MVC facilite les contributions :
+
+1. **Ajouter une vue** : Créer dans `views/`
+2. **Ajouter un modèle** : Créer dans `models/`
+3. **Ajouter un service** : Créer dans `services/`
+4. **Modifier la config** : Éditer `config/settings.py`
+
+## 🧹 Nettoyage du Projet
+
+### Fichiers Supprimés
+- `app.py` - Ancienne version monolithique
+- `requirements_old.txt` - Anciens requirements
+- Fichiers `.backup` - Tentatives de migration SharePoint
+- `budget_workflow_local.db` - Base de données redondante
+- Fichiers système (`.DS_Store`)
+
+Tous ces fichiers sont disponibles dans `DELETED_FILES/` si nécessaire.
+
+## 📧 Support
+
+- **Issues** : Créer une issue GitHub
+- **Améliorations** : Proposer une Pull Request
+- **Questions** : Contacter l'équipe de développement
 
 ## 📄 Licence
 
-Ce projet est sous licence privée - Tous droits réservés.
-
-## 👨‍💻 Auteur
-
-**Votre Nom** - [GitHub](https://github.com/VOTRE-USERNAME)
-
-## 🆘 Support
-
-- **Issues** : [GitHub Issues](https://github.com/VOTRE-USERNAME/budgetmanage/issues)
-- **Documentation** : [Wiki](https://github.com/VOTRE-USERNAME/budgetmanage/wiki)
+Projet interne - Tous droits réservés
 
 ---
 
-⭐ **Si ce projet vous plaît, n'hésitez pas à lui donner une étoile !**
+**Version** : 2.0 (Architecture MVC refactorisée)  
+**Dernière mise à jour** : Mai 2025
+**Nettoyage** : Fichiers obsolètes supprimés

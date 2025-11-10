@@ -9,7 +9,6 @@ from controllers.demande_controller import DemandeController
 from config.settings import get_status_info
 from utils.date_utils import format_date
 from utils.spinner_utils import OperationFeedback
-from models.user import UserModel
 
 @AuthController.require_auth
 def demandes_page():
@@ -46,17 +45,12 @@ def demandes_page():
         status_filter = st.session_state.get('demandes_status_filter', 'tous')
         type_filter = st.session_state.get('demandes_type_filter', 'tous')
         montant_filter = st.session_state.get('demandes_montant_filter', 'tous')
-        fiscal_year_filter = st.session_state.get('demandes_fiscal_year_filter', 'Tous')
         
-        # Convert fiscal_year_filter to string or None
-        fiscal_year_param = fiscal_year_filter if fiscal_year_filter != 'Tous' else None
-
         demandes = DemandeController.get_demandes_for_user(
             user_id=AuthController.get_current_user_id(),
             role=user_info['role'],
             search_query=search_query,
-            status_filter=status_filter if status_filter != 'tous' else '',
-            fiscal_year_filter=fiscal_year_param
+            status_filter=status_filter if status_filter != 'tous' else ''
         )
         
         if not demandes.empty:
@@ -127,16 +121,10 @@ def _display_filters():
         st.session_state.demandes_type_filter = 'tous'
     if 'demandes_montant_filter' not in st.session_state:
         st.session_state.demandes_montant_filter = 'tous'
-    # Initialize fiscal year filter
-    current_year = datetime.now().year
-    # Generate a list of fiscal years in BYXX format (e.g., BY20, BY21, BY22, etc.)
-    fiscal_years_options = ['Tous'] + [f"BY{str(year)[2:]}" for year in range(current_year - 5, current_year + 6)]
-    if 'demandes_fiscal_year_filter' not in st.session_state:
-        st.session_state.demandes_fiscal_year_filter = 'Tous'
-
+        
     with st.expander("🔍 Filtres et Recherche", expanded=True):
-        col1, col2, col3, col4, col5 = st.columns(5)
-
+        col1, col2, col3, col4 = st.columns(4)
+        
         with col1:
             search_query = st.text_input(
                 "Rechercher", 
@@ -148,7 +136,7 @@ def _display_filters():
             # Mettre à jour la session state
             if search_query != st.session_state.demandes_search_query:
                 st.session_state.demandes_search_query = search_query
-
+        
         with col2:
             status_options = {
                 'tous': 'Tous les statuts',
@@ -168,7 +156,7 @@ def _display_filters():
             # Mettre à jour la session state
             if status_filter != st.session_state.demandes_status_filter:
                 st.session_state.demandes_status_filter = status_filter
-
+        
         with col3:
             type_options = {
                 'tous': 'Tous types',
@@ -185,7 +173,7 @@ def _display_filters():
             # Mettre à jour la session state
             if type_filter != st.session_state.demandes_type_filter:
                 st.session_state.demandes_type_filter = type_filter
-
+        
         with col4:
             montant_options = {
                 'tous': 'Tous montants',
@@ -204,19 +192,7 @@ def _display_filters():
             # Mettre à jour la session state
             if montant_filter != st.session_state.demandes_montant_filter:
                 st.session_state.demandes_montant_filter = montant_filter
-
-        with col5:
-             # Fiscal Year Filter
-            fiscal_year_filter = st.selectbox(
-                "Année Fiscale",
-                options=fiscal_years_options,
-                index=fiscal_years_options.index(st.session_state.demandes_fiscal_year_filter),
-                key='demandes_fiscal_year_select'
-            )
-             # Mettre à jour la session state
-            if fiscal_year_filter != st.session_state.demandes_fiscal_year_filter:
-                st.session_state.demandes_fiscal_year_filter = fiscal_year_filter
-
+    
     # Actions rapides
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
@@ -229,7 +205,6 @@ def _display_filters():
             st.session_state.demandes_status_filter = 'tous'
             st.session_state.demandes_type_filter = 'tous'
             st.session_state.demandes_montant_filter = 'tous'
-            st.session_state.demandes_fiscal_year_filter = 'Tous'
             st.rerun()
     
     with col3:
@@ -269,126 +244,78 @@ def _display_cards_view(demandes, user_info):
             col1, col2 = st.columns(2)
             
             with col1:
-                # Utiliser la nouvelle transformation pour les régions (via l'utilitaire)
-                try:
-                    from utils.dropdown_display import DropdownDisplayUtils
-                    display_labels = DropdownDisplayUtils.get_display_labels_for_demande(row)
-                except ImportError:
-                    # Fallback vers les valeurs brutes si l'utilitaire n'est pas disponible
-                    # et utiliser get_region_display_value pour la région comme fallback spécifique
-                    try:
-                         from models.dropdown_options import DropdownOptionsModel
-                         region_display = DropdownOptionsModel.get_region_display_value(row.get('region'))
-                    except ImportError:
-                         region_display = row.get('region','N/A')
-
-                    display_labels = {
-                        'budget': row.get('budget', 'N/A'),
-                        'categorie': row.get('categorie', 'N/A'),
-                        'typologie_client': row.get('typologie_client', 'N/A'),
-                        'groupe_groupement': row.get('groupe_groupement', 'N/A'),
-                        'region': region_display
-                    }
+                # Utiliser la nouvelle transformation pour les régions
+                from models.dropdown_options import DropdownOptionsModel
                 
-                st.markdown("**📝 Détails:**")
-                st.markdown(f"- **Type:** {row.get('type_demande','N/A').title()}")
-                st.markdown(f"- **Budget:** {display_labels['budget']}")
-                st.markdown(f"- **Catégorie:** {display_labels['categorie']}")
-                st.markdown(f"- **Typologie Client:** {display_labels['typologie_client']}")
-                st.markdown(f"- **Groupe/Groupement:** {display_labels['groupe_groupement']}")
-                st.markdown(f"- **Région:** {display_labels['region']}")
-                st.markdown(f"- **Agence:** {row.get('agence','N/A')}")
-                st.markdown(f"- **Client/Enseigne:** {row.get('client_enseigne','N/A')}")
-                st.markdown(f"- **Email Contact:** {row.get('mail_contact','N/A')}")
-                st.markdown(f"- **Nom Contact:** {row.get('nom_contact','N/A')}")
-                st.markdown(f"- **Client:** {row.get('client','N/A')}")
-                st.markdown(f"- **Date événement:** {format_date(row.get('date_evenement'))}")
-                st.markdown(f"- **Lieu:** {row.get('lieu','N/A')}")
-                st.markdown(f"- **Montant:** {row.get('montant', 0.0):,.0f}€")
-
-                # Afficher les participants améliorés
+                display_labels = {
+                    'budget': row.get('budget', 'Non spécifié'),
+                    'categorie': row.get('categorie', 'Non spécifié'),
+                    'typologie_client': row.get('typologie_client', 'Non spécifié'),
+                    'groupe_groupement': row.get('groupe_groupement', 'Non spécifié'),
+                    'region': DropdownOptionsModel.get_region_display_value(row.get('region', '')) if row.get('region') else 'Non spécifié'
+                }
+                
+                st.markdown(f"""
+                **📝 Détails:**
+                - **Client:** {row['client']}
+                - **Date événement:** {format_date(row['date_evenement'])}
+                - **Année civile (CY):** {row.get('cy', 'N/A')}
+                - **Année fiscale (BY):** {row.get('by', 'N/A')}
+                - **Lieu:** {row['lieu']}
+                - **Montant:** {row['montant']:,.0f}€
+                - **Type:** {row['type_demande'].title()}
+                - **Budget:** {display_labels['budget']}
+                - **Catégorie:** {display_labels['categorie']}
+                - **Typologie Client:** {display_labels['typologie_client']}
+                - **Groupe/Groupement:** {display_labels['groupe_groupement']}
+                - **Région:** {display_labels['region']}
+                - **Agence:** {row['agence']}
+                - **Client/Enseigne:** {row['client_enseigne']}
+                - **Email Contact:** {row['mail_contact']}
+                - **Nom Contact:** {row['nom_contact']}
+                """)
+                
+                # Afficher les nouveaux participants
                 try:
-                    from views.components.participants_selector import get_participants_display_text
-                    participants_text = get_participants_display_text(
-                        row['id'], 
-                        {'prenom': row.get('prenom', 'N/A'), 'nom': row.get('nom', 'N/A'), 'role': row.get('user_role', 'tc')},
-                        row.get('demandeur_participe', True),
-                        row.get('participants_libres', '')
-                    )
-                    if participants_text and participants_text != "Aucun participant":
-                        st.markdown(f"- **Participants:** {participants_text}")
+                    from views.components.participants_advanced import display_participants_readonly
+                    
+                    # Créer un conteneur pour l'affichage des participants
+                    participants_container = st.container()
+                    with participants_container:
+                        display_participants_readonly(
+                            row['id'], 
+                            {'prenom': row['prenom'], 'nom': row['nom'], 'role': row.get('user_role', 'tc')},
+                            row.get('demandeur_participe', True),
+                            row.get('participants_libres', '')
+                        )
+                        
                 except ImportError:
                     # Fallback vers l'ancien affichage
                     if row.get('participants'):
-                        st.markdown(f"- **Participants:** {row.get('participants','N/A')}")
-
-            with col2:
-                st.markdown("**👤 Informations:**")
-                st.markdown(f"- **Demandeur:** {row.get('prenom','N/A')} {row.get('nom','N/A')}")
-                st.markdown(f"- **Email Demandeur:** {row.get('email','N/A')}")
-                st.markdown(f"- **Rôle Demandeur:** {row.get('user_role','N/A')}")
-                st.markdown(f"- **Statut:** {status_info['label']}")
-                st.markdown(f"- **Année Fiscale:** {row.get('by', 'N/A')}")
-                st.markdown(f"- **Urgence:** {row.get('urgence','normale').title()}")
-                st.markdown(f"- **Créée le:** {format_date(row.get('created_at'))}")
-                st.markdown(f"- **Modifiée le:** {format_date(row.get('updated_at'))}")
-
-                # --- Statut Validations: DR, Financier, DG ---
-                st.markdown("**Statut Validations:**")
-                from models.user import UserModel # Importer ici pour éviter les dépendances circulaires
-                import pandas as pd # Importer pandas pour isna
-
-                # Statut DR
-                dr_validated_id = row.get('valideur_dr_id')
-                dr_status_text = "⏳ En attente DR"
-                if dr_validated_id is not None and isinstance(dr_validated_id, (int, float)) and not pd.isna(dr_validated_id):
-                    dr_validated_id = int(dr_validated_id)
-                    dr_validator = UserModel.get_user_by_id(dr_validated_id)
-                    if dr_validator:
-                        dr_status_text = f"✅ Validé par {dr_validator.get('prenom', '')} {dr_validator.get('nom', '')} : {format_date(row.get('date_validation_dr'))}"
-                    else:
-                        dr_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dr'))}"
-                st.markdown(f"- {dr_status_text}")
-
-                # Statut Financier
-                fin_validated_id = row.get('valideur_financier_id')
-                fin_status_text = "⏳ En attente Financier"
-                if fin_validated_id is not None and isinstance(fin_validated_id, (int, float)) and not pd.isna(fin_validated_id):
-                     fin_validated_id = int(fin_validated_id)
-                     fin_validator = UserModel.get_user_by_id(fin_validated_id)
-                     if fin_validator:
-                          fin_status_text = f"✅ Validé par {fin_validator.get('prenom', '')} {fin_validator.get('nom', '')} : {format_date(row.get('date_validation_financier'))}"
-                     else:
-                          fin_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_financier'))}"
-                st.markdown(f"- {fin_status_text}")
-
-                # Statut DG
-                dg_validated_id = row.get('valideur_dg_id')
-                dg_status_text = "⏳ En attente DG"
-                if dg_validated_id is not None and isinstance(dg_validated_id, (int, float)) and not pd.isna(dg_validated_id):
-                    dg_validated_id = int(dg_validated_id)
-                    dg_validator = UserModel.get_user_by_id(dg_validated_id)
-                    if dg_validator:
-                        dg_status_text = f"✅ Validé par {dg_validator.get('prenom', '')} {dg_validator.get('nom', '')} : {format_date(row.get('date_validation_dg'))}"
-                    else:
-                        dg_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dg'))}"
-                st.markdown(f"- {dg_status_text}")
-
-            # Commentaires généraux sous les colonnes
-            if row.get('commentaires'):
-                st.markdown("**💭 Commentaires Généraux:**")
-                st.markdown(row.get('commentaires'))
-
-            st.markdown("---") # Séparateur
-
-            # Afficher les actions disponibles pour cette demande (validation, soumission, suppression, etc.)
-            _display_demande_actions(row, user_info)
+                        st.markdown(f"**👥 Participants (ancien):** {row['participants']}")
+                    
+                    # Afficher les participants libres s'ils existent
+                    if row.get('participants_libres'):
+                        st.markdown(f"**👥 Autres participants:** {row.get('participants_libres')}")
             
-            # --- Ajouter les actions de validation si applicable ---
-            _display_demande_validation_actions(row, user_info)
+            with col2:
+                st.markdown(f"""
+                **👤 Informations:**
+                - **Demandeur:** {row['prenom']} {row['nom']}
+                - **Email:** {row['email']}
+                - **Statut:** {status_info['label']}
+                - **Créée le:** {format_date(row['created_at'])}
+                - **Modifiée le:** {format_date(row['updated_at'])}
+                """)
+            
+            if row.get('commentaires'):
+                st.markdown(f"**💭 Commentaires:** {row['commentaires']}")
+            
+            # Actions disponibles
+            _display_demande_actions(row, user_info)
 
 def _display_demande_actions(row, user_info):
-    """Affiche les actions spécifiques (soumettre, modifier, supprimer) pour une demande"""
+    """Affiche les actions disponibles pour une demande"""
     col1, col2, col3, col4 = st.columns(4)
     user_id = AuthController.get_current_user_id()
     
@@ -553,117 +480,3 @@ def _handle_financial_validation(demande_id, action):
                         st.error(f"❌ {message}")
                 except Exception as e:
                     st.error(f"❌ Erreur: {e}")
-
-def _display_demande_validation_actions(row, user_info):
-    """Affiche les actions de validation pour une demande"""
-    demande_id = row['id']
-    role = user_info['role']
-    current_user_id = user_info['id']
-    
-    # Actions de validation pour le rôle DR
-    if row['status'] == 'en_attente_dr' and role == 'dr':
-        st.markdown("**Action DR:**")
-        col1, col2 = st.columns(2)
-        
-        # Formulaire pour Valider/Rejeter
-        with st.form(f"dr_demande_validation_form_{demande_id}"):
-            commentaire = st.text_area(
-                "Commentaire (facultatif pour validation):",
-                placeholder="Votre commentaire pour la validation DR...",
-                key=f"dr_comment_{demande_id}"
-            )
-            
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                valider_button = st.form_submit_button("✅ Valider", use_container_width=True, type="primary")
-                
-            with col_btn2:
-                rejeter_button = st.form_submit_button("❌ Rejeter", use_container_width=True)
-            
-            # Logique de traitement après soumission du formulaire
-            if valider_button:
-                with st.spinner("Validation DR en cours..."):
-                    success, message = DemandeController.validate_demande(
-                        demande_id, current_user_id, 'valider', commentaire or "Validé via Mes Demandes"
-                    )
-                
-                if success:
-                    st.success(f"✅ {message}")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {message}")
-
-            if rejeter_button:
-                if not commentaire.strip():
-                    st.error("Un motif de rejet est obligatoire")
-                else:
-                    with st.spinner("Rejet DR en cours..."):
-                        success, message = DemandeController.validate_demande(
-                            demande_id, current_user_id, 'rejeter', commentaire
-                        )
-                    
-                    if success:
-                        st.success(f"✅ {message}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {message}")
-
-    # Actions de validation pour les rôles Financier/DG
-    elif row['status'] == 'en_attente_financier' and role in ['dr_financier', 'dg']:
-        # Vérifier si l'utilisateur actuel a déjà validé
-        has_current_user_validated = False
-        if role == 'dr_financier' and row.get('valideur_financier_id') == current_user_id:
-            has_current_user_validated = True
-        elif role == 'dg' and row.get('valideur_dg_id') == current_user_id:
-            has_current_user_validated = True
-
-        st.markdown(f"**Action {role.upper()}:**")
-        
-        if has_current_user_validated:
-            st.info("✅ Vous avez déjà validé cette demande.")
-        else:
-            # Formulaire pour Valider/Rejeter
-            with st.form(f"fin_demande_validation_form_{demande_id}"):
-                commentaire = st.text_area(
-                    "Commentaire (facultatif pour validation):",
-                    placeholder="Votre commentaire pour la validation...",
-                    key=f"fin_comment_{demande_id}"
-                )
-                
-                col_btn1, col_btn2 = st.columns(2)
-                
-                with col_btn1:
-                    valider_button = st.form_submit_button(f"✅ Valider ({role})", use_container_width=True, type="primary")
-
-                with col_btn2:
-                    rejeter_button = st.form_submit_button(f"❌ Rejeter ({role})", use_container_width=True)
-                    
-                # Logique de traitement après soumission du formulaire
-                if valider_button:
-                    with st.spinner(f"Validation {role} en cours..."):
-                        success, message = DemandeController.validate_demande(
-                            demande_id, current_user_id, 'valider', commentaire or f"Validé par {role} via Mes Demandes"
-                        )
-                    
-                    if success:
-                        st.success(f"✅ {message}")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {message}")
-
-                if rejeter_button:
-                    if not commentaire.strip():
-                        st.error("Un motif de rejet est obligatoire")
-                    else:
-                        with st.spinner(f"Rejet {role} en cours..."):
-                            success, message = DemandeController.validate_demande(
-                                demande_id, current_user_id, 'rejeter', commentaire
-                            )
-                        
-                        if success:
-                            st.success(f"✅ {message}")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {message}")

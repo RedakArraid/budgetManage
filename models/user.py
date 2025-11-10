@@ -19,6 +19,7 @@ class User:
     prenom: str = ""
     role: str = ""
     region: Optional[str] = None
+    budget_alloue: float = 0.0
     directeur_id: Optional[int] = None
     is_active: bool = False
     created_at: Optional[datetime] = None
@@ -54,8 +55,8 @@ class UserModel:
             hashed_password = hash_password(password)
             
             # Include is_active and activated_at if user is active on creation
-            fields = 'email, password_hash, nom, prenom, role, region, directeur_id'
-            values_tuple = (email, hashed_password, nom, prenom, role, region, directeur_id)
+            fields = 'email, password_hash, nom, prenom, role, region, budget_alloue, directeur_id'
+            values_tuple = (email, hashed_password, nom, prenom, role, region, budget_alloue, directeur_id)
 
             if is_active:
                 fields += ', is_active, activated_at'
@@ -121,7 +122,7 @@ class UserModel:
         """Get user by ID"""
         try:
             user_data = db.execute_query('''
-                SELECT id, email, nom, prenom, role, region, 
+                SELECT id, email, nom, prenom, role, region, budget_alloue, 
                        directeur_id, is_active, created_at, activated_at
                 FROM users WHERE id = ?
             ''', (user_id,), fetch='one')
@@ -130,23 +131,6 @@ class UserModel:
         except Exception as e:
             print(f"Erreur récupération utilisateur: {e}")
             return None
-    
-    @staticmethod
-    def get_all_users_list() -> List[Dict[str, Any]]:
-        """Get all users as a list of dictionaries (for budget management)"""
-        try:
-            users = db.execute_query('''
-                SELECT u.id, u.email, u.nom, u.prenom, u.role, u.region, 
-                       u.is_active, u.created_at, d.nom as directeur_nom, d.prenom as directeur_prenom
-                FROM users u
-                LEFT JOIN users d ON u.directeur_id = d.id
-                ORDER BY u.created_at DESC
-            ''', fetch='all')
-            
-            return [dict(user) for user in users] if users else []
-        except Exception as e:
-            print(f"Erreur récupération utilisateurs (liste): {e}")
-            return []
     
     @staticmethod
     def get_all_users() -> pd.DataFrame:
@@ -215,7 +199,7 @@ class UserModel:
             # Liste des champs autorisés (incluant tous les champs modifiables)
             allowed_fields = [
                 'nom', 'prenom', 'email', 'role', 'region', 
-                'directeur_id', 'is_active'
+                'budget_alloue', 'directeur_id', 'is_active'
             ]
             
             print(f"Debug: Champs autorisés: {allowed_fields}")
@@ -411,138 +395,89 @@ class UserModel:
                 conn.execute('BEGIN TRANSACTION')
                 
                 try:
-                    # Ensure foreign key constraints are enabled in this connection
-                    conn.execute('PRAGMA foreign_keys = ON')
-
-                    # 1. Mettre à jour les demandes où cet utilisateur est valideur
-                    # Mettre à NULL les références à l'utilisateur supprimé dans les demandes d'autres utilisateurs
-                    conn.execute(
-                         "UPDATE demandes SET valideur_dr_id = NULL WHERE valideur_dr_id = ?",
-                         (user_id,)
-                    )
-                    conn.execute(
-                         "UPDATE demandes SET valideur_financier_id = NULL WHERE valideur_financier_id = ?",
-                         (user_id,)
-                    )
-                    conn.execute(
-                         "UPDATE demandes SET valideur_dg_id = NULL WHERE valideur_dg_id = ?",
-                         (user_id,)
-                    )
-
-                    # --- Cleanup dependents of demandes created by this user ---
-                    # Get the IDs of demands created by this user
-                    demande_ids_to_delete_result = conn.execute(
-                        "SELECT id FROM demandes WHERE user_id = ?",
+                    # 1. Supprimer les demandes créées par cet utilisateur
+                    demandes_result = conn.execute(
+                        "SELECT COUNT(*) FROM demandes WHERE user_id = ?", 
                         (user_id,)
-                    ).fetchall()
-                    demande_ids_to_delete = [row[0] for row in demande_ids_to_delete_result]
+                    ).fetchone()
+                    demandes_count = demandes_result[0] if demandes_result else 0
                     
-                    if demande_ids_to_delete:
-                         # Convert list of IDs to a string format suitable for SQL IN clause
-                         demande_ids_str = ', '.join(map(str, demande_ids_to_delete))
-
-                         # 2. Supprimer les logs d'activité liés aux demandes créées par cet utilisateur
-                         conn.execute(
-                              f"DELETE FROM activity_logs WHERE demande_id IN ({demande_ids_str})"
-                         )
-
-                         # 3. Supprimer les participants des demandes créées par cet utilisateur
-                         conn.execute(
-                             f"DELETE FROM demande_participants WHERE demande_id IN ({demande_ids_str})"
-                         )
-
-                         # 4. Supprimer les validations des demandes créées par cet utilisateur
-                         conn.execute(
-                              f"DELETE FROM demande_validations WHERE demande_id IN ({demande_ids_str})"
-                         )
-
-                         # 5. Supprimer les notifications liées aux demandes créées par cet utilisateur
-                         conn.execute(
-                              f"DELETE FROM notifications WHERE demande_id IN ({demande_ids_str})"
-                         )
-
-                         # Add deletion for a potential comments table
-                         # Assuming a table named 'commentaires' with a foreign key 'demande_id'
-                         try:
-                              conn.execute(
-                                   f"DELETE FROM commentaires WHERE demande_id IN ({demande_ids_str})"
-                              )
-                         except Exception as e:
-                              # Log a warning but don't fail the transaction if the table doesn't exist
-                              print(f"Warning: Could not delete from potential commentaires table: {e}")
-                              pass # Continue the transaction even if this table doesn't exist
-
-                         # Add deletion for a potential budget lines table
-                         # Assuming a table named 'lignes_budgetaires' with a foreign key 'demande_id'
-                         try:
-                              conn.execute(
-                                   f"DELETE FROM lignes_budgetaires WHERE demande_id IN ({demande_ids_str})"
-                              )
-                         except Exception as e:
-                              print(f"Warning: Could not delete from potential lignes_budgetaires table: {e}")
-                              pass # Continue
-
-                         # Now, attempt to delete the demands themselves
-                         conn.execute(
-                             f"DELETE FROM demandes WHERE id IN ({demande_ids_str})"
-                         )
-
-
-                    # --- Cleanup other user-related dependents ---
-
-                    # 6. Supprimer les participations de cet utilisateur à d'autres demandes (non créées par lui)
+                    if demandes_count > 0:
+                        # Supprimer les participants des demandes
+                        conn.execute(
+                            "DELETE FROM demande_participants WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
+                            (user_id,)
+                        )
+                        
+                        # Supprimer les validations des demandes
+                        conn.execute(
+                            "DELETE FROM demande_validations WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
+                            (user_id,)
+                        )
+                        
+                        # Supprimer les notifications liées aux demandes
+                        conn.execute(
+                            "DELETE FROM notifications WHERE demande_id IN (SELECT id FROM demandes WHERE user_id = ?)",
+                            (user_id,)
+                        )
+                        
+                        # Supprimer les demandes elles-mêmes
+                        conn.execute(
+                            "DELETE FROM demandes WHERE user_id = ?",
+                            (user_id,)
+                        )
+                    
+                    # 2. Supprimer les participations à d'autres demandes
                     conn.execute(
                         "DELETE FROM demande_participants WHERE user_id = ?",
                         (user_id,)
                     )
-
-                    # 7. Supprimer les validations effectuées par cet utilisateur dans n'importe quelle demande
+                    
+                    # 3. Supprimer les validations effectuées par cet utilisateur
                     conn.execute(
                         "DELETE FROM demande_validations WHERE validated_by = ?",
                         (user_id,)
                     )
-
-                    # 8. Supprimer les notifications destinées spécifiquement à cet utilisateur
+                    
+                    # 4. Supprimer les notifications envoyées à cet utilisateur
                     conn.execute(
                         "DELETE FROM notifications WHERE user_id = ?",
                         (user_id,)
                     )
-
-                    # 9. Supprimer les logs d'activité liés à cet utilisateur (qui a effectué l'action ou qui est concerné)
+                    
+                    # 5. Supprimer les logs d'activité
                     conn.execute(
                         "DELETE FROM activity_logs WHERE user_id = ?",
                         (user_id,)
                     )
-                    # Optionnel: Gérer les logs où l'utilisateur est la cible (target_user_id) si une telle colonne existe et a une FK
-
-                    # 10. Mettre à jour les utilisateurs qui ont cet utilisateur comme directeur
+                    
+                    # 6. Mettre à jour les utilisateurs qui ont cet utilisateur comme directeur
                     subordinates_result = conn.execute(
                         "SELECT COUNT(*) FROM users WHERE directeur_id = ?",
                         (user_id,)
                     ).fetchone()
                     subordinates_count = subordinates_result[0] if subordinates_result else 0
-
+                    
                     if subordinates_count > 0:
                         # Mettre directeur_id à NULL pour les subordonnés
                         conn.execute(
                             "UPDATE users SET directeur_id = NULL WHERE directeur_id = ?",
                             (user_id,)
                         )
-
-                    # 11. Supprimer l'utilisateur lui-même
+                    
+                    # 7. Supprimer l'utilisateur lui-même
                     conn.execute(
                         "DELETE FROM users WHERE id = ?",
                         (user_id,)
                     )
-
+                    
                     # Valider la transaction
                     conn.commit()
-
-                    return True, f"Utilisateur {user_info['prenom']} {user_info['nom']} supprimé définitivement (avec {len(demande_ids_to_delete)} demande(s) créée(s) et {subordinates_count} subordonné(s) affecté(s))"
-
+                    
+                    return True, f"Utilisateur {user_info['prenom']} {user_info['nom']} supprimé définitivement (avec {demandes_count} demande(s) et {subordinates_count} subordonné(s) affecté(s))"
+                    
                 except Exception as e:
                     conn.rollback()
-                    # Re-raise the exception to be caught by the outer except block
                     raise e
                     
         except Exception as e:
@@ -619,169 +554,3 @@ class UserModel:
         except Exception as e:
             print(f"Erreur récupération tous les TCs: {e}")
             return []
-
-    @staticmethod
-    def change_password(user_id: int, current_password: str, new_password: str) -> tuple[bool, str]:
-        """Change the user's password in the database."""
-        try:
-            # 1. Get user by ID
-            user_data = UserModel.get_user_by_id(user_id)
-            if not user_data:
-                return False, "Utilisateur non trouvé."
-
-            # 2. Verify the current password
-            if not verify_password(current_password, user_data['password_hash']):
-                return False, "Mot de passe actuel incorrect."
-
-            # 3. Hash the new password
-            hashed_new_password = hash_password(new_password)
-
-            # 4. Update the password in the database
-            db.execute_query(
-                '''
-                UPDATE users
-                SET password_hash = ?
-                WHERE id = ?
-                ''', (hashed_new_password, user_id)
-            )
-
-            return True, "Mot de passe mis à jour avec succès."
-
-        except Exception as e:
-            print(f"Erreur UserModel.change_password pour user_id {user_id}: {e}")
-            return False, f"Une erreur est survenue lors de la mise à jour du mot de passe: {e}"
-
-    @staticmethod
-    def is_email_unique(email: str, exclude_user_id: Optional[int] = None) -> bool:
-        """Check if an email is unique"""
-        try:
-            query = 'SELECT id FROM users WHERE email = ?'
-            params = [email]
-            
-            if exclude_user_id:
-                query += ' AND id != ?'
-                params.append(exclude_user_id)
-            
-            existing = db.execute_query(query, tuple(params), fetch='one')
-            return not existing
-        except Exception as e:
-            print(f"Erreur vérification email unique: {e}")
-            return False
-
-    @staticmethod
-    def get_user_budgets(user_id: int) -> List[Dict[str, Any]]:
-        """Get all fiscal year budgets for a user"""
-        try:
-            budgets = db.execute_query(
-                '''
-                SELECT id, fiscal_year, allocated_budget
-                FROM user_budgets
-                WHERE user_id = ?
-                ORDER BY fiscal_year DESC
-                ''',
-                (user_id,), fetch='all'
-            )
-            return [dict(budget) for budget in budgets] if budgets else []
-        except Exception as e:
-            print(f"Erreur récupération budgets utilisateur {user_id}: {e}")
-            return []
-
-    @staticmethod
-    def get_user_budget_for_year(user_id: int, fiscal_year: int) -> Optional[Dict[str, Any]]:
-        """Get the allocated budget for a specific user and fiscal year"""
-        try:
-            budget = db.execute_query(
-                '''
-                SELECT id, fiscal_year, allocated_budget
-                FROM user_budgets
-                WHERE user_id = ? AND fiscal_year = ?
-                ''',
-                (user_id, fiscal_year), fetch='one'
-            )
-            return dict(budget) if budget else None
-        except Exception as e:
-            print(f"Erreur récupération budget {user_id} année {fiscal_year}: {e}")
-            return None
-
-    @staticmethod
-    def add_user_budget(user_id: int, fiscal_year: int, allocated_budget: float) -> bool:
-        """Add a new fiscal year budget for a user"""
-        try:
-            db.execute_query(
-                '''
-                INSERT INTO user_budgets (user_id, fiscal_year, allocated_budget)
-                VALUES (?, ?, ?)
-                ''',
-                (user_id, fiscal_year, allocated_budget)
-            )
-            print(f"✅ Budget de {allocated_budget}€ ajouté pour l'utilisateur {user_id} en {fiscal_year}")
-            return True
-        except Exception as e:
-            print(f"❌ Erreur ajout budget utilisateur {user_id} année {fiscal_year}: {e}")
-            return False
-
-    @staticmethod
-    def update_user_budget(budget_id: int, allocated_budget: float) -> bool:
-        """Update an existing fiscal year budget amount"""
-        try:
-            db.execute_query(
-                '''
-                UPDATE user_budgets
-                SET allocated_budget = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                ''',
-                (allocated_budget, budget_id)
-            )
-            print(f"✅ Budget ID {budget_id} mis à jour à {allocated_budget}€")
-            return True
-        except Exception as e:
-            print(f"❌ Erreur mise à jour budget ID {budget_id}: {e}")
-            return False
-
-    @staticmethod
-    def delete_user_budget(budget_id: int) -> bool:
-        """Delete a fiscal year budget entry"""
-        try:
-            db.execute_query(
-                '''
-                DELETE FROM user_budgets
-                WHERE id = ?
-                ''',
-                (budget_id,)
-            )
-            print(f"✅ Budget ID {budget_id} supprimé")
-            return True
-        except Exception as e:
-            print(f"❌ Erreur suppression budget ID {budget_id}: {e}")
-            return False
-
-    @staticmethod
-    def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-        """Get a user by their email"""
-        try:
-            user_data = db.execute_query('''
-                SELECT id, password_hash, nom, prenom, role, is_active, directeur_id, region
-                FROM users WHERE email = ?
-            ''', (email,), fetch='one')
-            
-            return dict(user_data) if user_data else None
-        except Exception as e:
-            print(f"Erreur récupération utilisateur par email: {e}")
-            return None
-
-    @staticmethod
-    def get_user_budget_by_id(budget_id: int) -> Optional[Dict[str, Any]]:
-        """Get a user budget entry by its ID"""
-        try:
-            budget_data = db.execute_query(
-                '''
-                SELECT id, user_id, fiscal_year, allocated_budget
-                FROM user_budgets
-                WHERE id = ?
-                ''',
-                (budget_id,), fetch='one'
-            )
-            return dict(budget_data) if budget_data else None
-        except Exception as e:
-            print(f"Erreur récupération budget par ID {budget_id}: {e}")
-            return None

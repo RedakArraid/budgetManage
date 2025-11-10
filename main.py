@@ -48,7 +48,7 @@ def initialize_app():
     Initialise l'application.
     Cela inclut l'initialisation de la base de données (création des tables si elles n'existent pas)
     et le chargement des styles CSS personnalisés.
-    Utilise le gestionnaire de session centralisé.
+    Initialise également les variables nécessaires dans l'état de session Streamlit.
     """
     # Initialise la base de données (crée le fichier .db et les tables si besoin).
     db.init_database()
@@ -63,25 +63,19 @@ def initialize_app():
     # Charge et applique les styles CSS personnalisés.
     st.markdown(load_css(), unsafe_allow_html=True)
 
-    # Inject custom CSS for sidebar background
-    st.markdown(
-        """
-        <style>
-            [data-testid="stSidebar"] {
-                background-color: #000000;
-            }
-             /* Style for the main content area background */
-            [data-testid="stAppViewContainer"] .main {
-                background-color: #1a1a1a;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Initialise l'état de session centralisé
-    from utils.session_manager import session_manager
-    session_manager.init_session()
+    # Initialise les variables clés dans st.session_state si elles n'existent pas.
+    # 'logged_in': Indique si un utilisateur est connecté (booléen).
+    # 'user_id': L'ID de l'utilisateur connecté (None si déconnecté).
+    # 'user_info': Un dictionnaire contenant les informations de l'utilisateur connecté.
+    # 'page': Le nom de la page actuelle à afficher.
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = None
+    if 'user_info' not in st.session_state:
+        st.session_state.user_info = {}
+    if 'page' not in st.session_state:
+        st.session_state.page = "login"
 
 def display_sidebar():
     """
@@ -113,22 +107,11 @@ def display_sidebar():
         # Construit la liste des éléments de navigation disponibles en fonction du rôle de l'utilisateur.
         nav_items = _get_navigation_items(user_info['role'])
 
-        # Utiliser un ensemble pour suivre les identifiants de page et éviter les doublons
-        seen_pages = set()
-        unique_nav_items = []
-        for item in nav_items:
-            page_id = item[2] # L'identifiant de page est le troisième élément du tuple
-            if page_id not in seen_pages:
-                seen_pages.add(page_id)
-                unique_nav_items.append(item)
-
         # Affiche les boutons de navigation.
         # Chaque bouton met à jour l'état de session 'page' et relance l'application pour afficher la nouvelle page.
-        from utils.session_manager import session_manager
-        for icon, label, page in unique_nav_items:
+        for icon, label, page in nav_items:
             if st.button(f"{icon} {label}", use_container_width=True, key=f"nav_{page}"):
-                print(f"[DEBUG] Navigation button clicked: {page}")
-                session_manager.set_current_page(page)
+                st.session_state.page = page
                 st.rerun()
 
         st.markdown("---") # Ligne séparatrice
@@ -160,7 +143,6 @@ def _get_navigation_items(role):
         nav_items.insert(1, ("➕", "Nouvelle demande", "admin_create_demande"))
         nav_items.insert(2, ("👥", "Utilisateurs", "gestion_utilisateurs"))
         nav_items.insert(3, ("🏦️", "Listes Déroulantes", "admin_dropdown_options"))
-        nav_items.insert(4, ("💰", "Gestion Budgets", "gestion_budgets"))
 
     if role in ['tc', 'dr', 'marketing']:
         # Les créateurs de demandes (TC, DR, Marketing) peuvent créer de nouvelles demandes.
@@ -169,9 +151,6 @@ def _get_navigation_items(role):
     if role in ['dr', 'dr_financier', 'dg']:
         # Les validateurs (DR, DR Financier, DG) ont accès à la page de validation.
         nav_items.insert(-2, ("✅", "Validations", "validations"))
-
-    # Add Account Settings for all authenticated users
-    nav_items.append(("⚙️", "Paramètres du compte", "account_settings"))
 
     return nav_items
 
@@ -200,34 +179,27 @@ def _display_notification_count():
 
 def route_pages():
     """
-    Gère le routage vers la page appropriée en fonction de la valeur de l'état de session.
+    Gère le routage vers la page appropriée en fonction de la valeur de st.session_state.page.
     Vérifie d'abord l'authentification, puis les permissions d'accès à la page demandée.
-    Utilise le gestionnaire de session centralisé.
     """
-    from utils.session_manager import session_manager
-    
     # Si l'utilisateur n'est pas connecté, affiche la page de connexion et arrête le routage.
-    if not session_manager.is_authenticated():
-        print("[DEBUG] User not authenticated, showing login page.")
+    if not AuthController.check_session():
         login_page()
         return
 
     # Récupère la page actuelle depuis l'état de session (par défaut : dashboard).
-    page = session_manager.get_current_page()
-    print(f"[DEBUG] Current page from session state: {page}")
+    page = st.session_state.get('page', 'dashboard')
 
     # Vérifie si l'utilisateur connecté a les permissions nécessaires pour accéder à la page demandée.
     if not AuthController.can_access_page(page):
         # Si l'accès est refusé, affiche un message d'erreur, redirige vers le tableau de bord et relance.
-        print(f"[DEBUG] Access denied for page: {page}. Redirecting to dashboard.")
         st.error("❌ Vous n'avez pas les permissions pour accéder à cette page")
-        session_manager.set_current_page("dashboard")
+        st.session_state.page = "dashboard"
         st.rerun()
         return
 
     # Route vers la fonction de vue correspondante en fonction de la page demandée.
     # Les vues sont importées localement ici pour une meilleure organisation et potentiellement pour éviter les importations circulaires.
-    print(f"[DEBUG] Routing to page function for: {page}")
     if page == "dashboard":
         dashboard_page()
     elif page == "admin_create_demande":
@@ -254,16 +226,9 @@ def route_pages():
     elif page == "notifications":
         from views.notifications_view import notifications_page
         notifications_page()
-    elif page == "account_settings":
-        from views.account_settings_view import account_settings_page
-        account_settings_page()
-    elif page == "gestion_budgets":
-        from views.gestion_budgets_view import gestion_budgets_view
-        gestion_budgets_view()
     else:
         # Si la page demandée n'est pas reconnue, affiche le tableau de bord par défaut.
-        print(f"[DEBUG] Unrecognized page: {page}. Defaulting to dashboard.")
-        session_manager.set_current_page("dashboard")
+        st.session_state.page = "dashboard"
         dashboard_page()
 
 def main():
@@ -275,22 +240,12 @@ def main():
     # Configure les paramètres de la page Streamlit.
     configure_page()
 
-    # Initialise l'application (DB, CSS, session_manager) une seule fois
-    if 'initialized' not in st.session_state or not st.session_state.initialized:
-        print("[DEBUG] Initializing application for the first time...")
-        initialize_app()
-        
-        # Exécuter la migration des années fiscales
-        try:
-            from migrations.fiscal_year_unification import migrate_fiscal_year_unification
-            migrate_fiscal_year_unification()
-        except Exception as e:
-            print(f"Avertissement: Erreur migration années fiscales: {e}")
-        
-        st.session_state.initialized = True
-    
-    # Affiche la barre latérale de navigation
-    display_sidebar()
+    # Initialise les composants de l'application (base de données, styles, session state).
+    initialize_app()
+
+    # Affiche la barre latérale si l'utilisateur est connecté.
+    if AuthController.check_session():
+        display_sidebar()
 
     # Gère l'affichage de la page principale en fonction de l'état de session.
     route_pages()

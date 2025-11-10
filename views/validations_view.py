@@ -8,7 +8,6 @@ from controllers.auth_controller import AuthController
 from controllers.demande_controller import DemandeController
 from config.settings import get_status_info
 from utils.date_utils import format_date
-from models.user import UserModel
 
 @AuthController.require_role(['dr', 'dr_financier', 'dg'])
 def validations_page():
@@ -55,27 +54,16 @@ def _get_demandes_validation(user_info):
     user_id = AuthController.get_current_user_id()
     role = user_info['role']
     
-    # Get fiscal year filter from session state
-    fiscal_year_filter = st.session_state.get('validation_fiscal_year_filter', 'Tous')
-    # Convert to string or None for the controller - fiscal_year_filter expects string format like 'BY25'
-    fiscal_year_param = fiscal_year_filter if fiscal_year_filter != 'Tous' else None
-    
     if role == 'dr':
         # DR voit les demandes en attente DR de son équipe
         return DemandeController.get_demandes_for_user(
             user_id,
             role,
-            status_filter='en_attente_dr',
-            fiscal_year_filter=fiscal_year_param
+            status_filter='en_attente_dr'
         )
     elif role in ['dr_financier', 'dg']:
         # Financiers voient toutes les demandes en attente financière
-        return DemandeController.get_demandes_for_user(
-            user_id, 
-            role, 
-            status_filter='en_attente_financier',
-            fiscal_year_filter=fiscal_year_param
-        )
+        return DemandeController.get_demandes_for_user(user_id, role, status_filter='en_attente_financier')
     
     return pd.DataFrame()
 
@@ -114,16 +102,10 @@ def _display_validation_filters():
         st.session_state.validation_montant_filter = 'tous'
     if 'validation_type_filter' not in st.session_state:
         st.session_state.validation_type_filter = 'tous'
-    # Initialize fiscal year filter
-    current_year = datetime.now().year
-    # Generate a list of fiscal years in BYXX format (e.g., BY20, BY21, BY22, etc.)
-    fiscal_years_options = ['Tous'] + [f"BY{str(year)[2:]}" for year in range(current_year - 5, current_year + 6)]
-    if 'validation_fiscal_year_filter' not in st.session_state:
-        st.session_state.validation_fiscal_year_filter = 'Tous'
-
+        
     with st.expander("🔍 Filtres", expanded=False):
-        col1, col2, col3, col4, col5 = st.columns(5) # Added one more column for fiscal year
-
+        col1, col2, col3, col4 = st.columns(4)
+        
         with col1:
             search = st.text_input(
                 "Rechercher", 
@@ -133,7 +115,7 @@ def _display_validation_filters():
             )
             if search != st.session_state.validation_search_query:
                 st.session_state.validation_search_query = search
-
+                
         with col2:
             urgence_options = ['toutes', 'normale', 'urgent', 'critique']
             urgence_filter = st.selectbox(
@@ -144,7 +126,7 @@ def _display_validation_filters():
             )
             if urgence_filter != st.session_state.validation_urgence_filter:
                 st.session_state.validation_urgence_filter = urgence_filter
-
+                
         with col3:
             montant_options = {
                 'tous': 'Tous montants',
@@ -161,7 +143,7 @@ def _display_validation_filters():
             )
             if montant_filter != st.session_state.validation_montant_filter:
                 st.session_state.validation_montant_filter = montant_filter
-
+                
         with col4:
             type_options = {
                 'tous': 'Tous types',
@@ -177,19 +159,7 @@ def _display_validation_filters():
             )
             if type_filter != st.session_state.validation_type_filter:
                 st.session_state.validation_type_filter = type_filter
-
-        with col5:
-             # Fiscal Year Filter
-            fiscal_year_filter = st.selectbox(
-                "Année Fiscale",
-                options=fiscal_years_options,
-                index=fiscal_years_options.index(st.session_state.validation_fiscal_year_filter),
-                key='validation_fiscal_year_select'
-            )
-             # Mettre à jour la session state
-            if fiscal_year_filter != st.session_state.validation_fiscal_year_filter:
-                st.session_state.validation_fiscal_year_filter = fiscal_year_filter
-
+    
     # Boutons d'action pour les filtres
     col1, col2 = st.columns(2)
     with col1:
@@ -201,7 +171,6 @@ def _display_validation_filters():
             st.session_state.validation_urgence_filter = 'toutes'
             st.session_state.validation_montant_filter = 'tous'
             st.session_state.validation_type_filter = 'tous'
-            st.session_state.validation_fiscal_year_filter = 'Tous'
             st.rerun()
 
 def _display_pending_validations(demandes, user_info):
@@ -343,71 +312,39 @@ def _display_validation_card(row, user_info):
             st.markdown(f"- **Email Demandeur:** {row.get('email','N/A')}") # Utiliser 'email' du JOIN
             st.markdown(f"- **Rôle Demandeur:** {row.get('user_role','N/A')}") # Utiliser 'user_role' du JOIN
             st.markdown(f"- **Statut:** {get_status_info(row.get('status','N/A'))['label']}")
-            st.markdown(f"- **Année Fiscale:** {row.get('by', 'N/A')}") # Display BYNN format
-            st.markdown(f"- **Urgence:** {row.get('urgence','normale').title()}")
+            st.markdown(f"- **Urgence:** {urgence.title()}")
             st.markdown(f"- **Créée le:** {format_date(row.get('created_at'))}")
             st.markdown(f"- **Modifiée le:** {format_date(row.get('updated_at'))}")
 
-            # --- Statut Validations: DR, Financier, DG ---
-            st.markdown("**Statut Validations:**")
-            from models.user import UserModel # Importer ici pour éviter les dépendances circulaires
-            import pandas as pd # Importer pandas pour isna
+            # Afficher l'historique de validation si disponible
+            if row.get('date_validation_dr'):
+                st.markdown(f"✅ **Validé par DR:** {format_date(row['date_validation_dr'])}")
+                if row.get('commentaire_dr'):
+                    st.markdown(f"💬 *{row['commentaire_dr']}*")
+            if row.get('date_validation_financier'): # Vérifier si le nom de colonne est correct dans le DataFrame
+                 st.markdown(f"✅ **Validé par Financier:** {format_date(row['date_validation_financier'])}")
+                 if row.get('commentaire_financier'):
+                     st.markdown(f"💬 *{row['commentaire_financier']}*")
+            # Ajouter DG si nécessaire, vérifier nom de colonne (ex: date_validation_dg, commentaire_dg)
+            if row.get('date_validation_dg'):
+                 st.markdown(f"✅ **Validé par DG:** {format_date(row['date_validation_dg'])}")
+                 if row.get('commentaire_dg'):
+                      st.markdown(f"💬 *{row['commentaire_dg']}*")
 
-            # Statut DR
-            dr_validated_id = row.get('valideur_dr_id')
-            dr_status_text = "⏳ En attente DR"
-            if dr_validated_id is not None and isinstance(dr_validated_id, (int, float)) and not pd.isna(dr_validated_id):
-                 dr_validated_id = int(dr_validated_id)
-                 dr_validator = UserModel.get_user_by_id(dr_validated_id)
-                 if dr_validator:
-                      dr_status_text = f"✅ Validé par {dr_validator.get('prenom', '')} {dr_validator.get('nom', '')} : {format_date(row.get('date_validation_dr'))}"
-                 else:
-                      dr_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dr'))}"
+        # Commentaires généraux sous les colonnes
+        if row.get('commentaires'):
+            st.markdown("**💭 Commentaires Généraux:**")
+            st.markdown(row.get('commentaires'))
 
-            st.markdown(f"- {dr_status_text}")
+        st.markdown("---") # Séparateur avant les actions
 
-            # Statut Financier
-            fin_validated_id = row.get('valideur_financier_id')
-            fin_status_text = "⏳ En attente Financier"
-            if fin_validated_id is not None and isinstance(fin_validated_id, (int, float)) and not pd.isna(fin_validated_id):
-                 fin_validated_id = int(fin_validated_id)
-                 fin_validator = UserModel.get_user_by_id(fin_validated_id)
-                 if fin_validator:
-                      fin_status_text = f"✅ Validé par {fin_validator.get('prenom', '')} {fin_validator.get('nom', '')} : {format_date(row.get('date_validation_financier'))}"
-                 else:
-                      fin_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_financier'))}"
-            st.markdown(f"- {fin_status_text}")
-
-            # Statut DG
-            dg_validated_id = row.get('valideur_dg_id')
-            dg_status_text = "⏳ En attente DG"
-            if dg_validated_id is not None and isinstance(dg_validated_id, (int, float)) and not pd.isna(dg_validated_id):
-                dg_validated_id = int(dg_validated_id)
-                dg_validator = UserModel.get_user_by_id(dg_validated_id)
-                if dg_validator:
-                     dg_status_text = f"✅ Validé par {dg_validator.get('prenom', '')} {dg_validator.get('nom', '')} : {format_date(row.get('date_validation_dg'))}"
-                else:
-                     dg_status_text = f"✅ Validé par inconnu : {format_date(row.get('date_validation_dg'))}"
-
-            st.markdown(f"- {dg_status_text}")
-
-            # Commentaires généraux sous les colonnes
-            if row.get('commentaires'):
-                st.markdown("**💭 Commentaires Généraux:**")
-                st.markdown(row.get('commentaires'))
-
-            st.markdown("---") # Séparateur avant les actions
-
-            # Actions disponibles (maintenant à l'intérieur de l'expander)
-            _display_validation_actions(row, user_info)
+        # Actions disponibles (maintenant à l'intérieur de l'expander)
+        _display_validation_actions(row, user_info)
 
 def _display_validation_actions(row, user_info):
     """Affiche les actions de validation - Version corrigée"""
     role = user_info['role']
     demande_id = row['id']
-    
-    # Debug: Afficher le rôle perçu par cette fonction pour cette demande
-    print(f"[DEBUG] _display_validation_actions - Demande ID: {demande_id}, Perceived Role: {role}, Demande Status: {row['status']}")
     
     # Debug info pour diagnostiquer les problèmes
     if st.checkbox(f"Debug demande {demande_id}", key=f"debug_{demande_id}"):
@@ -490,11 +427,6 @@ def _display_validation_actions(row, user_info):
             else:
                 if st.button(f"✅ Valider ({role})", key=f"val_fin_{demande_id}", use_container_width=True, type="primary"):
                     try:
-                        # Debug: Vérifier si le bouton Valider Financier/DG est cliqué
-                        print(f"[DEBUG] Valider ({role}) button clicked for demande {demande_id}")
-                        # Debug: Marquer que le bouton a été cliqué
-                        st.session_state[f'val_fin_{demande_id}_clicked'] = True
-                        
                         with st.spinner(f"Validation {role} en cours..."):
                             success, message = DemandeController.validate_demande(
                                 demande_id, 
@@ -574,8 +506,7 @@ def _display_recent_validations(user_info):
     # Utiliser get_demandes_for_user et filtrer par statuts validés ou rejetés
     all_demandes = DemandeController.get_demandes_for_user(
         AuthController.get_current_user_id(),
-        user_info['role'],
-        status_filter='tous'
+        user_info['role']
     )
 
     if not all_demandes.empty:
